@@ -5,7 +5,8 @@
     "moduleResolution": "Node16",
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true
   },
   "exclude": [
     "dist",
