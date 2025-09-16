@@ -22,10 +22,16 @@ inputs:
     description: 'Fail behavior: true|false|any|only-provenance-loss (default: true)'
     required: false
     default: 'true'
+  fail-on-provenance-change:
+    description: 'Fail job when provenance repository/branch changes (default: false)'
+    required: false
+    default: 'false'
 
 outputs:
   downgraded:
     description: 'JSON array of { name, from, to, downgradeType } for detected downgrades'
+  changed:
+    description: 'JSON array of provenance change events: { name, from, to, type, previousRepository?, newRepository?, previousBranch?, newBranch? }'
 
 runs:
   using: node24

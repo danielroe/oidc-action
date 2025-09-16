@@ -31,10 +31,11 @@ jobs:
       - name: Check provenance downgrades
         uses: danielroe/provenance-action
         id: check
-        # with:
-        #   lockfile: pnpm-lock.yaml # optional
-        #   base-ref: origin/main    # optional, default: origin/main
-        #   fail-on-downgrade: true  # optional, default: true
+        with:
+          fail-on-provenance-change: true # optional, default: false
+        #   lockfile: pnpm-lock.yaml      # optional
+        #   base-ref: origin/main         # optional, default: origin/main
+        #   fail-on-downgrade: true       # optional, default: true
       - name: Print result
         run: echo "Downgraded: ${{ steps.check.outputs.downgraded }}"
 ```
@@ -44,15 +45,18 @@ jobs:
 - `workspace-path` (optional): Path to workspace root. Default: `.`
 - `base-ref` (optional): Git ref to compare against. Default: `origin/main`.
 - `fail-on-downgrade` (optional): Controls failure behavior. Accepts `true`, `false`, `any`, or `only-provenance-loss`. Default: `true` (which is the same as `any`).
+- `fail-on-provenance-change` (optional): When `true`, fail on provenance repository/branch changes. Default: `false`.
 
 ## 📤 Outputs
 - `downgraded`: JSON array of `{ name, from, to, downgradeType }` for detected downgrades. `downgradeType` is `provenance` or `trusted_publisher`.
+- `changed`: JSON array of provenance change events `{ name, from, to, type, previousRepository?, newRepository?, previousBranch?, newBranch? }`.
 
 ## 🧠 How it works
 1. Diffs your lockfile against the base ref and collects changed resolved versions (including transitives).
 2. Checks npm provenance via the attestations API for each `name@version`.
 3. Falls back to version metadata for `dist.attestations`.
 4. Emits file+line annotations in the lockfile.
+5. If provenance exists for both the previous and new version, extracts GitHub `owner/repo` and branch from attestations and warns when they differ (repo changed or branch changed).
 
 ## 🔒 Why this matters
 Trusted publishing links a package back to its source repo and build workflow, providing strong provenance guarantees. It helps ensure the package you install corresponds to audited source and CI.
@@ -68,3 +72,4 @@ This is a stopgap until package managers enforce stronger policies natively. Unt
 ## ⚠️ Notes
 - Runs on Node 24+ and executes the TypeScript entrypoint directly.
 - Bun (`bun.lockb`) is not yet supported.
+ - Repository and branch change detection is best‑effort; attestation shapes vary and some packages omit repo/ref details.
