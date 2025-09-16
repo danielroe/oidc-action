@@ -1,8 +1,8 @@
-import type { VersionsSet } from '../lib/index.ts'
+import type { VersionsSet } from '../lib/lockfile.ts'
 import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { diffDependencySets, findLockfileLine, parseLockfile, parseNpmLock, parsePnpmLock, parseYarnBerryLock, parseYarnV1Lock, yarnBerrySpecifierToName, yarnV1SpecifierToName } from '../lib/index.ts'
+import { diffDependencySets, findLockfileLine, parseLockfile, parseNpmLock, parsePnpmLock, parseYarnBerryLock, parseYarnV1Lock, yarnBerrySpecifierToName, yarnV1SpecifierToName } from '../lib/lockfile.ts'
 
 function toSorted(obj: VersionsSet): Record<string, string[]> {
   const out: Record<string, string[]> = {}

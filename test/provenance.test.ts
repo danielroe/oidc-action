@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { hasProvenance, hasTrustedPublisher } from '../lib/index.ts'
+import { hasProvenance, hasTrustedPublisher } from '../lib/provenance.ts'
 
 test('hasProvenance detects known provenance package versions', async () => {
   const cache = new Map<string, boolean>()
