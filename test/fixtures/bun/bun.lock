@@ -1,0 +1,12 @@
+{
+  "packages": [
+    {
+      "name": "lodash",
+      "version": "4.17.21"
+    },
+    {
+      "name": "@scope/name",
+      "version": "2.3.4"
+    }
+  ]
+}
