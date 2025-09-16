@@ -67,4 +67,4 @@ This is a stopgap until package managers enforce stronger policies natively. Unt
 
 ## ⚠️ Notes
 - Runs on Node 24+ and executes the TypeScript entrypoint directly.
-- Yarn Berry (`yarn.lock` v2+) and Bun (`bun.lockb`) are not yet supported.
+- Bun (`bun.lockb`) is not yet supported.
