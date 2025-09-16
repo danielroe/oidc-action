@@ -18,6 +18,7 @@ async function run(): Promise<void> {
       || failOnDowngradeValue === 'any'
       || failOnDowngradeValue === ''
     const failOnlyProvenanceLoss = failOnDowngradeValue === 'only-provenance-loss'
+    const failOnProvChange = (getInput('fail-on-provenance-change') || 'false').toLowerCase() === 'true'
 
     const lockfilePath = lockfileInput || detectLockfile(workspacePath)
     if (!lockfilePath) {
@@ -45,10 +46,14 @@ async function run(): Promise<void> {
     }
 
     const provenanceCache = new Map<string, boolean>()
+    const provenanceDetailsCache = new Map<string, ProvenanceDetails>()
     const trustedPublisherCache = new Map<string, boolean>()
     type DowngradeType = 'provenance' | 'trusted_publisher'
     type DowngradeEvent = { name: string, from: string, to: string, downgradeType: DowngradeType, keptProvenance?: boolean }
     const events: DowngradeEvent[] = []
+    type ChangeWarningType = 'repo_changed' | 'branch_changed'
+    type ChangeWarning = { name: string, from: string, to: string, type: ChangeWarningType, prevRepo?: string, newRepo?: string, prevBranch?: string, newBranch?: string }
+    const warnings: ChangeWarning[] = []
 
     for (const change of changed) {
       if (change.previous.size === 0 || change.current.size === 0) {
@@ -60,6 +65,7 @@ async function run(): Promise<void> {
         if (change.previous.has(newVersion)) continue
 
         const hasProvNew = await hasProvenance(change.name, newVersion, provenanceCache)
+        const newDetails = await getProvenanceDetails(change.name, newVersion, provenanceDetailsCache)
         const hasTPNew = await hasTrustedPublisher(change.name, newVersion, trustedPublisherCache)
 
         // Trusted publisher downgrade (prev had TP, new does not)
@@ -83,19 +89,55 @@ async function run(): Promise<void> {
             }
           }
         }
+
+        // Provenance detail change checks (repo/branch) — warn only
+        if (hasProvNew) {
+          for (const prevVersion of change.previous) {
+            const prevDetails = await getProvenanceDetails(change.name, prevVersion, provenanceDetailsCache)
+            if (!prevDetails.has) continue
+            // Repository change
+            if (prevDetails.repository && newDetails.repository && prevDetails.repository !== newDetails.repository) {
+              warnings.push({ name: change.name, from: prevVersion, to: newVersion, type: 'repo_changed', prevRepo: prevDetails.repository, newRepo: newDetails.repository })
+              break
+            }
+            // Branch change
+            const prevBranch = prevDetails.branch
+            const newBranch = newDetails.branch
+            if (prevBranch && newBranch && prevBranch !== newBranch) {
+              warnings.push({ name: change.name, from: prevVersion, to: newVersion, type: 'branch_changed', prevBranch, newBranch })
+              break
+            }
+          }
+        }
       }
     }
 
     if (events.length === 0) {
       log('No downgrades detected.')
       setOutput('downgraded', '[]')
-      return
+      // Still report provenance change warnings if any
+      if (warnings.length === 0) {
+        setOutput('changed', '[]')
+        return
+      }
     }
 
-    const summaryLines = events.map(d => `- ${d.name}: ${d.from} -> ${d.to} [${d.downgradeType}${d.downgradeType === 'trusted_publisher' && d.keptProvenance ? ', kept provenance' : ''}]`)
-    log('Detected dependency downgrades:')
-    for (const line of summaryLines) log(line)
-    appendSummary(['Dependency downgrades:', ...summaryLines].join('\n'))
+    if (events.length > 0) {
+      const summaryLines = events.map(d => `- ${d.name}: ${d.from} -> ${d.to} [${d.downgradeType}${d.downgradeType === 'trusted_publisher' && d.keptProvenance ? ', kept provenance' : ''}]`)
+      log('Detected dependency downgrades:')
+      for (const line of summaryLines) log(line)
+      appendSummary(['Dependency downgrades:', ...summaryLines].join('\n'))
+    }
+
+    if (warnings.length > 0) {
+      const warnLines = warnings.map(w => {
+        if (w.type === 'repo_changed') return `- ${w.name}: ${w.from} -> ${w.to} [provenance repository changed: ${w.prevRepo} -> ${w.newRepo}]`
+        return `- ${w.name}: ${w.from} -> ${w.to} [provenance branch changed: ${w.prevBranch} -> ${w.newBranch}]`
+      })
+      log('Detected provenance changes:')
+      for (const line of warnLines) log(line)
+      appendSummary(['Provenance changes:', ...warnLines].join('\n'))
+    }
 
     // Emit GitHub Actions annotations on the lockfile lines (best-effort)
     for (const d of events) {
@@ -109,14 +151,38 @@ async function run(): Promise<void> {
       else annotate(level, lockfilePath, 1, 1, msg)
     }
 
+    // Emit annotations for provenance change warnings
+    for (const w of warnings) {
+      const line = findLockfileLine(lockfilePath, headContent, w.name, w.to)
+      const msg = w.type === 'repo_changed'
+        ? `${w.name} provenance repository changed: ${w.prevRepo} -> ${w.newRepo}`
+        : `${w.name} provenance branch changed: ${w.prevBranch} -> ${w.newBranch}`
+      const level = failOnProvChange ? 'error' : 'warning'
+      if (line) annotate(level, lockfilePath, line, 1, msg)
+      else annotate(level, lockfilePath, 1, 1, msg)
+    }
+
     // Output combined list (omit keptProvenance to keep output minimal)
     const outputEvents = events.map(e => ({ name: e.name, from: e.from, to: e.to, downgradeType: e.downgradeType }))
     setOutput('downgraded', JSON.stringify(outputEvents))
+    // Output provenance changes
+    const changedOutput = warnings.map(w => ({
+      name: w.name,
+      from: w.from,
+      to: w.to,
+      type: w.type,
+      previousRepository: w.prevRepo,
+      newRepository: w.newRepo,
+      previousBranch: w.prevBranch,
+      newBranch: w.newBranch,
+    }))
+    setOutput('changed', JSON.stringify(changedOutput))
 
     // Decide failure
-    if (failAnyDowngrade || failOnlyProvenanceLoss) {
-      const hasFail = events.some(e => failAnyDowngrade || (failOnlyProvenanceLoss && e.downgradeType === 'provenance'))
-      if (hasFail) process.exitCode = 1
+    if (failAnyDowngrade || failOnlyProvenanceLoss || failOnProvChange) {
+      const hasFailDowngrade = events.some(e => failAnyDowngrade || (failOnlyProvenanceLoss && e.downgradeType === 'provenance'))
+      const hasFailProvChange = failOnProvChange && warnings.length > 0
+      if (hasFailDowngrade || hasFailProvChange) process.exitCode = 1
     }
   } catch (err) {
     logError(err)
@@ -439,6 +505,159 @@ async function hasProvenance(name: string, version: string, cache: Map<string, b
     cache.set(key, false)
     return false
   }
+}
+
+type ProvenanceDetails = { has: boolean, repository?: string, ref?: string, branch?: string }
+
+async function getProvenanceDetails(name: string, version: string, cache: Map<string, ProvenanceDetails>): Promise<ProvenanceDetails> {
+  const key = `${name}@${version}`
+  if (cache.has(key)) return cache.get(key) as ProvenanceDetails
+
+  const details: ProvenanceDetails = { has: false }
+  const encodedName = encodeURIComponent(name)
+  const encodedVersion = encodeURIComponent(version)
+  const attestUrls = [
+    `https://registry.npmjs.org/-/npm/v1/attestations/${encodedName}@${encodedVersion}`,
+    `https://registry.npmjs.org/-/v1/attestations/${encodedName}@${encodedVersion}`
+  ]
+
+  for (const url of attestUrls) {
+    try {
+      const res = await httpJson(url)
+      const attestations: any[] = Array.isArray(res?.attestations) ? res.attestations : []
+      if (attestations.length === 0) continue
+      // Mark has provenance if any attestation exists
+      details.has = true
+      // Try to extract repo/ref from any attestation
+      for (const att of attestations) {
+        const { repository, ref } = extractRepoAndRef(att)
+        if (repository || ref) {
+          details.repository = repository || details.repository
+          details.ref = ref || details.ref
+          if (details.ref) details.branch = normalizeRefToBranch(details.ref)
+          if (details.repository && details.branch) break
+        }
+      }
+      break
+    } catch (e: any) {
+      if (e && e.statusCode === 404) {
+        // No provenance
+        cache.set(key, details)
+        return details
+      }
+      // Other errors: try next endpoint
+      continue
+    }
+  }
+
+  // Fallback to metadata if needed
+  if (!details.has) {
+    try {
+      const meta = await httpJson(packageMetadataUrl(name))
+      const ver = meta && meta.versions && meta.versions[version]
+      if (ver && ver.dist && ver.dist.attestations) {
+        const attestations = Array.isArray(ver.dist.attestations) ? ver.dist.attestations : [ver.dist.attestations]
+        if (attestations.length) {
+          details.has = true
+          for (const att of attestations) {
+            const { repository, ref } = extractRepoAndRef(att)
+            if (repository || ref) {
+              details.repository = repository || details.repository
+              details.ref = ref || details.ref
+              if (details.ref) details.branch = normalizeRefToBranch(details.ref)
+              if (details.repository && details.branch) break
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  cache.set(key, details)
+  return details
+}
+
+function extractRepoAndRef(att: any): { repository?: string, ref?: string } {
+  // Try several known shapes for npm/GitHub SLSA provenance
+  const stmt = att?.statement || att?.envelope || att
+  const predicate = stmt?.predicate || att?.predicate
+  const bd = predicate?.buildDefinition || predicate?.buildConfig || predicate?.build || {}
+  const ext = bd?.externalParameters || bd?.externalParametersJSON || {}
+  const workflow = ext?.workflow || ext?.github?.workflow || {}
+  const invocation = predicate?.invocation || {}
+  const configSource = invocation?.configSource || {}
+
+  let repository: string | undefined
+  let ref: string | undefined
+
+  // Direct workflow fields
+  if (typeof workflow?.repository === 'string') repository = normalizeRepository(workflow.repository)
+  if (typeof workflow?.ref === 'string') ref = workflow.ref
+
+  // configSource.uri like git+https://github.com/owner/repo@refs/heads/main
+  const uri = typeof configSource?.uri === 'string' ? configSource.uri : undefined
+  if (!repository || !ref) {
+    const parsed = uri ? parseRepoRefFromUri(uri) : undefined
+    if (parsed) {
+      repository = repository || parsed.repository
+      ref = ref || parsed.ref
+    }
+  }
+
+  // Sometimes present under bd.resolvedDependencies[].uri
+  if (!repository) {
+    const deps = Array.isArray(bd?.resolvedDependencies) ? bd.resolvedDependencies : []
+    for (const d of deps) {
+      const u = typeof d?.uri === 'string' ? d.uri : undefined
+      const parsed = u ? parseRepoRefFromUri(u) : undefined
+      if (parsed?.repository) { repository = parsed.repository; break }
+    }
+  }
+
+  return { repository, ref }
+}
+
+function normalizeRepository(repo: string): string {
+  // Accept formats like owner/repo or https://github.com/owner/repo(.git)
+  if (/^[^\s/]+\/[^^\s/]+$/.test(repo)) return repo.replace(/\.git$/, '')
+  try {
+    const url = new URL(repo.replace(/^git\+/, ''))
+    if (url.hostname.endsWith('github.com')) {
+      const parts = url.pathname.replace(/\.git$/, '').split('/').filter(Boolean)
+      if (parts.length >= 2) return `${parts[0]}/${parts[1]}`
+    }
+  } catch {}
+  return repo
+}
+
+function parseRepoRefFromUri(uri: string): { repository?: string, ref?: string } | undefined {
+  try {
+    const cleaned = uri.replace(/^git\+/, '')
+    // Split at last '@' to separate repo from ref if present
+    const at = cleaned.lastIndexOf('@')
+    let repoUrl = cleaned
+    let ref: string | undefined
+    if (at > cleaned.indexOf('://') + 2) {
+      repoUrl = cleaned.slice(0, at)
+      ref = cleaned.slice(at + 1)
+    }
+    const url = new URL(repoUrl)
+    if (!url.hostname.endsWith('github.com')) return undefined
+    const parts = url.pathname.replace(/\.git$/, '').split('/').filter(Boolean)
+    if (parts.length < 2) return undefined
+    const repository = `${parts[0]}/${parts[1]}`
+    return { repository, ref }
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeRefToBranch(ref?: string): string | undefined {
+  if (!ref || typeof ref !== 'string') return undefined
+  if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length)
+  return undefined
 }
 
 async function hasTrustedPublisher(name: string, version: string, cache: Map<string, boolean>): Promise<boolean> {
