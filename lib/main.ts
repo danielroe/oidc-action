@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { annotate, appendSummary, getInput, log, logError, setOutput } from './gh.ts'
 import { gitShowFile, guessDefaultBaseRef } from './git.ts'
-import { detectLockfile, diffDependencySets, findLockfileLine, parseLockfile, readTextFile } from './lockfile.ts'
+import { detectLockfile, diffDependencySets, findLockfileLine, parseLockfile, readTextFile, supportedLockfiles } from './lockfile.ts'
 import { getProvenanceDetails, hasProvenance, hasTrustedPublisher } from './provenance.ts'
 
 export async function run(): Promise<void> {
@@ -20,7 +20,7 @@ export async function run(): Promise<void> {
 
     const lockfilePath = lockfileInput || detectLockfile(workspacePath)
     if (!lockfilePath) {
-      log('No supported lockfile found. Supported: pnpm-lock.yaml, package-lock.json, yarn.lock')
+      log(`No supported lockfile found. Supported: ${supportedLockfiles.join(', ')}`)
       return
     }
 

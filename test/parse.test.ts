@@ -2,7 +2,7 @@ import type { VersionsSet } from '../lib/lockfile.ts'
 import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { diffDependencySets, findLockfileLine, parseLockfile, parseNpmLock, parsePnpmLock, parseYarnBerryLock, parseYarnV1Lock, yarnBerrySpecifierToName, yarnV1SpecifierToName } from '../lib/lockfile.ts'
+import { diffDependencySets, findLockfileLine, parseBunLock, parseLockfile, parseNpmLock, parsePnpmLock, parseYarnBerryLock, parseYarnV1Lock, yarnBerrySpecifierToName, yarnV1SpecifierToName } from '../lib/lockfile.ts'
 
 function toSorted(obj: VersionsSet): Record<string, string[]> {
   const out: Record<string, string[]> = {}
@@ -14,6 +14,7 @@ const packageLockJson = readFileSync(new URL('./fixtures/npm/package-lock.json',
 const pnpmLock = readFileSync(new URL('./fixtures/pnpm/pnpm-lock.yaml', import.meta.url), 'utf8')
 const yarnV1Lock = readFileSync(new URL('./fixtures/yarn-v1/yarn.lock', import.meta.url), 'utf8')
 const yarnBerryLock = readFileSync(new URL('./fixtures/yarn-berry/yarn.lock', import.meta.url), 'utf8')
+const bunLock = readFileSync(new URL('./fixtures/bun/bun.lock', import.meta.url), 'utf8')
 
 test('parseLockfile', async (t) => {
   await t.test('dispatches npm', () => {
@@ -48,6 +49,15 @@ test('parseLockfile', async (t) => {
     assert.ok(yarnBerry instanceof Map)
   })
   assert.deepEqual(toSorted(parseYarnBerryLock(yarnBerryLock)), {
+    '@scope/name': ['2.3.4'],
+    'lodash': ['4.17.21'],
+  })
+
+  await t.test('dispatches bun', () => {
+    const bun = parseLockfile('bun.lock', `{"packages":[]}`)
+    assert.ok(bun instanceof Map)
+  })
+  assert.deepEqual(toSorted(parseBunLock(bunLock)), {
     '@scope/name': ['2.3.4'],
     'lodash': ['4.17.21'],
   })
@@ -92,6 +102,11 @@ test('findLockfileLine', async (t) => {
   await t.test('finds in yarn berry lockfile', () => {
     assert.ok(
       findLockfileLine('yarn.lock', yarnBerryLock, 'lodash', '4.17.21'),
+    )
+  })
+  await t.test('finds in bun lockfile', () => {
+    assert.ok(
+      findLockfileLine('bun.lock', bunLock, 'lodash', '4.17.21'),
     )
   })
 

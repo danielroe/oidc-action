@@ -3,9 +3,10 @@ import { join } from 'node:path'
 
 export type VersionsSet = Map<string, Set<string>>
 
+export const supportedLockfiles = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock'] as const
+
 export function detectLockfile(workspacePath: string): string | undefined {
-  const candidates = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock']
-  for (const c of candidates) {
+  for (const c of supportedLockfiles) {
     if (existsSync(join(workspacePath, c)))
       return c
   }
@@ -26,6 +27,8 @@ export function parseLockfile(lockfilePath: string, content: string): VersionsSe
       return parseYarnV1Lock(content)
     return parseYarnBerryLock(content)
   }
+  if (lockfilePath.endsWith('bun.lock'))
+    return parseBunLock(content)
   return new Map()
 }
 
@@ -197,6 +200,74 @@ export function parseYarnBerryLock(content: string): VersionsSet {
   return result
 }
 
+export function parseBunLock(content: string): VersionsSet {
+  const result: VersionsSet = new Map()
+  let json: any
+  try {
+    // Try a straightforward JSON parse first (fixtures may be pure JSON)
+    json = JSON.parse(content)
+  }
+  catch {
+    // Fallback: strip simple // comments and retry (very naive JSONC support)
+    try {
+      const withoutLineComments = content
+        .split(/\r?\n/)
+        .map(l => l.replace(/(^|\s)\/\/.*$/, '$1'))
+        .join('\n')
+      json = JSON.parse(withoutLineComments)
+    }
+    catch {
+      return result
+    }
+  }
+
+  const pkgs = json && json.packages
+  if (!pkgs)
+    return result
+
+  if (Array.isArray(pkgs)) {
+    for (const entry of pkgs) {
+      if (!entry)
+        continue
+      const name: string | undefined = entry.name
+      const version: string | undefined = entry.version
+      if (name && version)
+        addVersion(result, name, version)
+    }
+    return result
+  }
+
+  if (typeof pkgs === 'object') {
+    for (const key of Object.keys(pkgs)) {
+      const entry = pkgs[key]
+      const version: string | undefined = entry && entry.version
+      if (!version)
+        continue
+      let name: string | undefined = entry && entry.name
+      if (!name) {
+        // Derive name from key patterns like "name@version" or "@scope/name@version"
+        const spec = String(key)
+        if (spec.startsWith('@')) {
+          const at2 = spec.indexOf('@', 1)
+          if (at2 > 0)
+            name = spec.slice(0, at2)
+        }
+        else {
+          const at1 = spec.indexOf('@')
+          if (at1 > 0)
+            name = spec.slice(0, at1)
+        }
+      }
+      if (!name)
+        continue
+      addVersion(result, name, version)
+    }
+    return result
+  }
+
+  return result
+}
+
 export function yarnV1SpecifierToName(spec: string): string | undefined {
   const at = spec.lastIndexOf('@')
   if (at <= 0)
@@ -259,6 +330,8 @@ export function findLockfileLine(lockfilePath: string, content: string, name: st
       return findLineInYarnV1Lock(content, name, version)
     return findLineInYarnBerryLock(content, name, version)
   }
+  if (lockfilePath.endsWith('bun.lock'))
+    return findLineInBunLock(content, name, version)
   return undefined
 }
 
@@ -346,6 +419,34 @@ function findLineInYarnBerryLock(content: string, name: string, version: string)
         break
       j++
     }
+  }
+  return undefined
+}
+
+function findLineInBunLock(content: string, name: string, version: string): number | undefined {
+  const lines = content.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i]
+    if (!l)
+      continue
+    if (l.includes(`"name"`) && l.includes(`"${name}"`)) {
+      for (let j = i; j < Math.min(lines.length, i + 30); j++) {
+        const v = lines[j]
+        if (new RegExp(`\"version\"\\s*:\\s*\"${version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\"`).test(v))
+          return j + 1
+        if (v && v.includes('}'))
+          break
+      }
+    }
+  }
+  const needleKey = `"${name}@${version}"`
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes(needleKey))
+      return i + 1
+  }
+  for (let i = 0; i < lines.length; i++) {
+    if (new RegExp(`\"version\"\\s*:\\s*\"${version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\"`).test(lines[i]))
+      return i + 1
   }
   return undefined
 }

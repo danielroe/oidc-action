@@ -6,11 +6,11 @@ Detect and fail CI when dependencies in your lockfile lose npm provenance or tru
 > This action is under active development and is only one tool to assist in securing your dependencies.
 
 ## ✨ Features
-- `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock` (v1 and v2+)
-- Handles transitives by comparing resolved versions
-- Inline GitHub annotations at the lockfile line
+- supports `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock` (v1 and v2+), `bun.lock`
+- handles transitives by comparing resolved versions
+- inline GitHub annotations at the lockfile line
 - JSON output and optional hard‑fail (default: on)
-- Pure TypeScript, Node 24+
+- pure TypeScript, Node 24+
 
 👉 See it in action: [danielroe/provenance-action-test](https://github.com/danielroe/provenance-action-test)
 
@@ -73,5 +73,5 @@ This is a stopgap until package managers enforce stronger policies natively. Unt
 
 ## ⚠️ Notes
 - Runs on Node 24+ and executes the TypeScript entrypoint directly.
-- Bun (`bun.lockb`) is not yet supported.
- - Repository and branch change detection is best‑effort; attestation shapes vary and some packages omit repo/ref details.
+- `bun.lockb` is not supported. (You can generate a `bun.lock` with `bun install --save-text-lockfile`.)
+- Repository and branch change detection is best‑effort; attestation shapes vary and some packages omit repo/ref details.
