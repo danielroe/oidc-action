@@ -951,7 +951,6 @@ if (import.meta.main) {
   run()
 }
 
-export { run }
 export type { VersionsSet }
 export {
   diffDependencySets,
@@ -963,6 +962,7 @@ export {
   parsePnpmLock,
   parseYarnBerryLock,
   parseYarnV1Lock,
+  run,
   yarnBerrySpecifierToName,
   yarnV1SpecifierToName,
 }

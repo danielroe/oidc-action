@@ -1,0 +1,11 @@
+lockfileVersion: 9.0
+
+packages:
+
+  /lodash@4.17.21:
+    resolution: {integrity: sha512-...}
+
+  /@scope/name@2.3.4(peer@1):
+    resolution: {integrity: sha512-...}
+
+

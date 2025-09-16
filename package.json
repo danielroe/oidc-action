@@ -9,7 +9,7 @@
   "keywords": [],
   "main": "lib/index.ts",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --experimental-test-coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "prepare": "simple-git-hooks",
