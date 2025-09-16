@@ -9,13 +9,16 @@ importers:
   .:
     devDependencies:
       '@types/node':
-        specifier: ^24.5.0
+        specifier: 24.5.0
         version: 24.5.0
       bumpp:
-        specifier: ^10.2.3
+        specifier: 10.2.3
         version: 10.2.3
+      simple-git-hooks:
+        specifier: 2.13.1
+        version: 2.13.1
       typescript:
-        specifier: ^5.9.2
+        specifier: 5.9.2
         version: 5.9.2
 
 packages:
@@ -135,6 +138,10 @@ packages:
   semver@7.7.2:
     resolution: {integrity: sha512-RF0Fw+rO5AMf9MAyaRXI4AV0Ulj5lMHqVxxdSgiVbixSCXoEmmX/jk0CuJw4+3SqroYO9VoUh+HcuJivvtJemA==}
     engines: {node: '>=10'}
+    hasBin: true
+
+  simple-git-hooks@2.13.1:
+    resolution: {integrity: sha512-WszCLXwT4h2k1ufIXAgsbiTOazqqevFCIncOuUBZJ91DdvWcC5+OFkluWRQPrcuSYd8fjq+o2y1QfWqYMoAToQ==}
     hasBin: true
 
   tinyexec@1.0.1:
@@ -273,6 +280,8 @@ snapshots:
   readdirp@4.1.2: {}
 
   semver@7.7.2: {}
+
+  simple-git-hooks@2.13.1: {}
 
   tinyexec@1.0.1: {}
 
