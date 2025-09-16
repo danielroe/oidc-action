@@ -624,7 +624,7 @@ function normalizeRepository(repo: string): string {
   if (/^[^\s/]+\/[^^\s/]+$/.test(repo)) return repo.replace(/\.git$/, '')
   try {
     const url = new URL(repo.replace(/^git\+/, ''))
-    if (url.hostname.endsWith('github.com')) {
+    if (url.hostname === 'github.com' || url.hostname.endsWith('.github.com')) {
       const parts = url.pathname.replace(/\.git$/, '').split('/').filter(Boolean)
       if (parts.length >= 2) return `${parts[0]}/${parts[1]}`
     }
