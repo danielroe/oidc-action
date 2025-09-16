@@ -1,11 +1,11 @@
 name: 'Provenance downgrade check'
-description: 'Checks lockfile changes for dependencies that lost npm provenance (trusted publishing)'
-author: 'Daniel Roe'
+description: 'GitHub Action that detects dependency provenance downgrades from lockfile changes (npm/pnpm/yarn).'
+author: 'Daniel Roe (@danielroe)'
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: 'upload'
-  color: 'green'
+  icon: 'shield'
+  color: 'purple'
 
 inputs:
   lockfile:
