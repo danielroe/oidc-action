@@ -14,6 +14,11 @@ Detect dependencies that lost npm provenance (trusted publishing) from your lock
 
 ## 🚀 Quick start
 ```yaml
+name: ci
+on:
+  pull_request:
+    branches:
+      - main
 jobs:
   check-provenance:
     runs-on: ubuntu-latest
@@ -22,12 +27,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check provenance downgrades
-        uses: ./
+        uses: danielroe/provenance-action
         id: check
-        with:
-          lockfile: pnpm-lock.yaml # optional
-          base-ref: origin/main    # optional, default: origin/main
-          fail-on-downgrade: true  # optional, default: true
+        # with:
+        #   lockfile: pnpm-lock.yaml # optional
+        #   base-ref: origin/main    # optional, default: origin/main
+        #   fail-on-downgrade: true  # optional, default: true
       - name: Print result
         run: echo "Downgraded: ${{ steps.check.outputs.downgraded }}"
 ```
