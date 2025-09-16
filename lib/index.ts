@@ -13,7 +13,11 @@ async function run(): Promise<void> {
     const workspacePath = getInput('workspace-path') || process.env.GITHUB_WORKSPACE || process.cwd()
     const lockfileInput = getInput('lockfile')
     const baseRefInput = getInput('base-ref')
-    const failOnDowngrade = (getInput('fail-on-downgrade') || 'true').toLowerCase() === 'true'
+    const failOnDowngradeValue = (getInput('fail-on-downgrade') || 'true').toLowerCase()
+    const failAnyDowngrade = failOnDowngradeValue === 'true'
+      || failOnDowngradeValue === 'any'
+      || failOnDowngradeValue === ''
+    const failOnlyProvenanceLoss = failOnDowngradeValue === 'only-provenance-loss'
 
     const lockfilePath = lockfileInput || detectLockfile(workspacePath)
     if (!lockfilePath) {
@@ -41,7 +45,10 @@ async function run(): Promise<void> {
     }
 
     const provenanceCache = new Map<string, boolean>()
-    const downgraded: Array<{ name: string, from: string, to: string }> = []
+    const trustedPublisherCache = new Map<string, boolean>()
+    type DowngradeType = 'provenance' | 'trusted_publisher'
+    type DowngradeEvent = { name: string, from: string, to: string, downgradeType: DowngradeType, keptProvenance?: boolean }
+    const events: DowngradeEvent[] = []
 
     for (const change of changed) {
       if (change.previous.size === 0 || change.current.size === 0) {
@@ -53,47 +60,63 @@ async function run(): Promise<void> {
         if (change.previous.has(newVersion)) continue
 
         const hasProvNew = await hasProvenance(change.name, newVersion, provenanceCache)
-        if (hasProvNew) continue
+        const hasTPNew = await hasTrustedPublisher(change.name, newVersion, trustedPublisherCache)
 
-        // Check if any previous version had provenance
-        let anyPrevHadProv = false
-        for (const prevVersion of change.previous) {
-          const hadProv = await hasProvenance(change.name, prevVersion, provenanceCache)
-          if (hadProv) {
-            anyPrevHadProv = true
-            // Record the first pair we find
-            downgraded.push({ name: change.name, from: prevVersion, to: newVersion })
-            break
+        // Trusted publisher downgrade (prev had TP, new does not)
+        if (!hasTPNew) {
+          for (const prevVersion of change.previous) {
+            const hadTPPrev = await hasTrustedPublisher(change.name, prevVersion, trustedPublisherCache)
+            if (hadTPPrev) {
+              events.push({ name: change.name, from: prevVersion, to: newVersion, downgradeType: 'trusted_publisher', keptProvenance: hasProvNew })
+              break
+            }
+          }
+        }
+
+        // Provenance downgrade (prev had provenance, new does not)
+        if (!hasProvNew) {
+          for (const prevVersion of change.previous) {
+            const hadProv = await hasProvenance(change.name, prevVersion, provenanceCache)
+            if (hadProv) {
+              events.push({ name: change.name, from: prevVersion, to: newVersion, downgradeType: 'provenance' })
+              break
+            }
           }
         }
       }
     }
 
-    if (downgraded.length === 0) {
-      log('No provenance downgrades detected.')
+    if (events.length === 0) {
+      log('No downgrades detected.')
       setOutput('downgraded', '[]')
       return
     }
 
-    const summaryLines = downgraded.map(d => `- ${d.name}: ${d.from} -> ${d.to}`)
-    log('Detected dependencies that lost provenance:')
+    const summaryLines = events.map(d => `- ${d.name}: ${d.from} -> ${d.to} [${d.downgradeType}${d.downgradeType === 'trusted_publisher' && d.keptProvenance ? ', kept provenance' : ''}]`)
+    log('Detected dependency downgrades:')
     for (const line of summaryLines) log(line)
+    appendSummary(['Dependency downgrades:', ...summaryLines].join('\n'))
 
     // Emit GitHub Actions annotations on the lockfile lines (best-effort)
-    for (const d of downgraded) {
+    for (const d of events) {
       const line = findLockfileLine(lockfilePath, headContent, d.name, d.to)
-      const level: 'error' | 'warning' = failOnDowngrade ? 'error' : 'warning'
-      const msg = `${d.name} lost npm provenance: ${d.from} -> ${d.to}`
+      const shouldFail = (failAnyDowngrade || (failOnlyProvenanceLoss && d.downgradeType === 'provenance'))
+      const level: 'error' | 'warning' = shouldFail ? 'error' : 'warning'
+      const base = d.downgradeType === 'provenance' ? 'lost npm provenance' : 'lost trusted publisher'
+      const extra = d.downgradeType === 'trusted_publisher' && d.keptProvenance ? ' (kept provenance)' : ''
+      const msg = `${d.name} ${base}: ${d.from} -> ${d.to}${extra}`
       if (line) annotate(level, lockfilePath, line, 1, msg)
       else annotate(level, lockfilePath, 1, 1, msg)
     }
 
-    const json = JSON.stringify(downgraded)
-    setOutput('downgraded', json)
-    appendSummary(['Dependencies that lost npm provenance (trusted publishing):', ...summaryLines].join('\n'))
+    // Output combined list (omit keptProvenance to keep output minimal)
+    const outputEvents = events.map(e => ({ name: e.name, from: e.from, to: e.to, downgradeType: e.downgradeType }))
+    setOutput('downgraded', JSON.stringify(outputEvents))
 
-    if (failOnDowngrade) {
-      process.exitCode = 1
+    // Decide failure
+    if (failAnyDowngrade || failOnlyProvenanceLoss) {
+      const hasFail = events.some(e => failAnyDowngrade || (failOnlyProvenanceLoss && e.downgradeType === 'provenance'))
+      if (hasFail) process.exitCode = 1
     }
   } catch (err) {
     logError(err)
@@ -357,6 +380,22 @@ async function hasProvenance(name: string, version: string, cache: Map<string, b
   }
 }
 
+async function hasTrustedPublisher(name: string, version: string, cache: Map<string, boolean>): Promise<boolean> {
+  const key = `${name}@${version}`
+  if (cache.has(key)) return cache.get(key) as boolean
+  try {
+    const meta = await httpJson(packageMetadataUrl(name))
+    const ver = meta && meta.versions && meta.versions[version]
+    const tp = Boolean(ver && ver._npmUser && ver._npmUser.trustedPublisher)
+      || Boolean(ver && ver._npmUser && ver._npmUser.name === 'GitHub Actions' && ver._npmUser.email === 'npm-oidc-no-reply@github.com')
+    cache.set(key, tp)
+    return tp
+  } catch {
+    cache.set(key, false)
+    return false
+  }
+}
+
 function packageMetadataUrl(name: string): string {
   // Prefer encoding the whole name; registry accepts encoded scoped names
   return `https://registry.npmjs.org/${encodeURIComponent(name)}`
@@ -498,4 +537,5 @@ export {
   yarnSpecifierToName,
   diffDependencySets,
   hasProvenance,
+  hasTrustedPublisher,
 }
