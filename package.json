@@ -1,5 +1,5 @@
 {
-  "name": "up-action",
+  "name": "provenance-action",
   "version": "0.0.1",
   "type": "module",
   "description": "GitHub Action that detects dependency provenance downgrades from lockfile changes (npm/pnpm/yarn).",
