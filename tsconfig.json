@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2015",
+    "module": "Node16",
+    "noEmit": true,
+    "moduleResolution": "Node16",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+  },
+  "exclude": [
+    "dist",
+    "playground"
+  ]
+}

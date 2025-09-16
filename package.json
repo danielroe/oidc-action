@@ -1,0 +1,26 @@
+{
+  "name": "up-action",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "GitHub Action that detects dependency provenance downgrades from lockfile changes (npm/pnpm/yarn).",
+  "main": "lib/index.ts",
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "prepare": "simple-git-hooks",
+    "release": "bumpp"
+  },
+  "keywords": [],
+  "author": "Daniel Roe <daniel@roe.dev>",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^24.5.0",
+    "bumpp": "^10.2.3",
+    "typescript": "^5.9.2"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "echo 1"
+  },
+  "packageManager": "pnpm@10.15.0"
+}

@@ -1,0 +1,32 @@
+name: 'Provenance downgrade check'
+description: 'Checks lockfile changes for dependencies that lost npm provenance (trusted publishing)'
+author: 'Daniel Roe'
+
+# Add your action's branding here. This will appear on the GitHub Marketplace.
+branding:
+  icon: 'upload'
+  color: 'green'
+
+inputs:
+  lockfile:
+    description: 'Path to lockfile (pnpm-lock.yaml, package-lock.json, yarn.lock)'
+    required: false
+  workspace-path:
+    description: 'Path to workspace root (default: GITHUB_WORKSPACE)'
+    required: false
+    default: '.'
+  base-ref:
+    description: 'Git ref to compare against (e.g., origin/main)'
+    required: false
+  fail-on-downgrade:
+    description: 'Fail the job if a downgrade is detected'
+    required: false
+    default: 'true'
+
+outputs:
+  downgraded:
+    description: 'JSON array of { name, from, to } for versions that lost provenance'
+
+runs:
+  using: node24
+  main: lib/index.ts
