@@ -169,7 +169,10 @@ async function gitShowFile(ref: string, filePath: string, cwd: string): Promise<
 function parseLockfile(lockfilePath: string, content: string): VersionsSet {
   if (lockfilePath.endsWith('package-lock.json')) return parseNpmLock(content)
   if (lockfilePath.endsWith('pnpm-lock.yaml')) return parsePnpmLock(content)
-  if (lockfilePath.endsWith('yarn.lock')) return parseYarnLockV1(content)
+  if (lockfilePath.endsWith('yarn.lock')) {
+    if (content.includes('yarn lockfile v1')) return parseYarnV1Lock(content)
+    return parseYarnBerryLock(content)
+  }
   return new Map()
 }
 
@@ -244,7 +247,7 @@ function parsePnpmLock(content: string): VersionsSet {
   return result
 }
 
-function parseYarnLockV1(content: string): VersionsSet {
+function parseYarnV1Lock(content: string): VersionsSet {
   const result: VersionsSet = new Map()
   const lines = content.split(/\r?\n/)
   let i = 0
@@ -279,19 +282,77 @@ function parseYarnLockV1(content: string): VersionsSet {
     }
     if (!version) continue
     for (const spec of specifiers) {
-      const name = yarnSpecifierToName(spec)
+      const name = yarnV1SpecifierToName(spec)
       if (name) addVersion(result, name, version)
     }
   }
   return result
 }
 
-function yarnSpecifierToName(spec: string): string | undefined {
+function parseYarnBerryLock(content: string): VersionsSet {
+  const result: VersionsSet = new Map()
+  const lines = content.split(/\r?\n/)
+  let i = 0
+  while (i < lines.length) {
+    let line = lines[i]
+
+    // Skip blanks and comments
+    if (!line || line.trimStart().startsWith('#')) { i++; continue }
+
+    // Yarn Berry keys are quoted descriptors, possibly multiple separated by commas
+    if (!line.startsWith('"') && !line.startsWith('\'')) { i++; continue }
+    if (!line.trimEnd().endsWith(':')) { i++; continue }
+
+    // Collect header (usually single line); split by commas into individual descriptors
+    const headerLine = line.trim()
+    const specifiers = headerLine
+      .split(',')
+      .map(s => s.trim())
+      .map(s => s.replace(/:$/, ''))
+      .map(s => s.replace(/^"|"$/g, '').replace(/^'|'$/g, ''))
+
+    // Read block to get version
+    i++
+    let version: string | undefined
+    while (i < lines.length) {
+      line = lines[i]
+      if (!line) { break }
+      if (!line.startsWith(' ')) { break }
+      const vm = /^\s{2}version:\s*(?:"([^\"]+)"|'([^']+)'|([^\s#]+))/.exec(line)
+      if (vm) {
+        version = vm[1] || vm[2] || vm[3]
+      }
+      i++
+    }
+
+    if (!version) { continue }
+    for (const spec of specifiers) {
+      const name = yarnBerrySpecifierToName(spec)
+      if (name) { addVersion(result, name, version) }
+    }
+  }
+  return result
+}
+
+function yarnV1SpecifierToName(spec: string): string | undefined {
   // Examples: lodash@^4.17.21, @scope/name@^1.2.3, name@npm:^1.0.0, name@patch:...
   // Take everything before the last '@'
   const at = spec.lastIndexOf('@')
   if (at <= 0) return undefined
   return spec.slice(0, at)
+}
+
+function yarnBerrySpecifierToName(spec: string): string | undefined {
+  // Yarn Berry descriptors like: "name@npm:^1.0.0" or "@scope/name@npm:^1.0.0"
+  const s = spec.replace(/^"|"$/g, '').replace(/^'|'$/g, '')
+  if (s.startsWith('@')) {
+    const at2 = s.indexOf('@', 1)
+    if (at2 <= 0) { return undefined }
+    return s.slice(0, at2)
+  }
+  const at1 = s.indexOf('@')
+  if (at1 <= 0) { return undefined }
+  return s.slice(0, at1)
 }
 
 function addVersion(map: VersionsSet, name: string, version: string): void {
@@ -462,7 +523,10 @@ function annotate(level: 'error' | 'warning', file: string, line: number, col: n
 function findLockfileLine(lockfilePath: string, content: string, name: string, version: string): number | undefined {
   if (lockfilePath.endsWith('package-lock.json')) return findLineInNpmLock(content, name)
   if (lockfilePath.endsWith('pnpm-lock.yaml')) return findLineInPnpmLock(content, name, version)
-  if (lockfilePath.endsWith('yarn.lock')) return findLineInYarnLockV1(content, name, version)
+  if (lockfilePath.endsWith('yarn.lock')) {
+    if (content.includes('yarn lockfile v1')) return findLineInYarnV1Lock(content, name, version)
+    return findLineInYarnBerryLock(content, name, version)
+  }
   return undefined
 }
 
@@ -501,7 +565,7 @@ function findLineInPnpmLock(content: string, name: string, version: string): num
   return undefined
 }
 
-function findLineInYarnLockV1(content: string, name: string, version: string): number | undefined {
+function findLineInYarnV1Lock(content: string, name: string, version: string): number | undefined {
   const lines = content.split(/\r?\n/)
   for (let i = 0; i < lines.length; i++) {
     const header = lines[i]
@@ -522,6 +586,28 @@ function findLineInYarnLockV1(content: string, name: string, version: string): n
   return undefined
 }
 
+function findLineInYarnBerryLock(content: string, name: string, version: string): number | undefined {
+  const lines = content.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const header = lines[i]
+    if (!header || header.startsWith(' ') || header.trimStart().startsWith('#')) continue
+    if (!header.trimEnd().endsWith(':')) continue
+    // Header contains one or more specifiers
+    if (!header.includes(`${name}@`)) continue
+    // Scan block for version line
+    let j = i + 1
+    while (j < lines.length && (lines[j].startsWith(' ') || !lines[j])) {
+      const m = /^\s{2}version:\s*(?:"([^\"]+)"|'([^']+)'|([^\s#]+))/.exec(lines[j])
+      const ver = m ? (m[1] || m[2] || m[3]) : undefined
+      if (ver === version) return j + 1
+      // Next block if encounter another header-like line without indentation
+      if (lines[j] && !lines[j].startsWith(' ') && lines[j].trimEnd().endsWith(':')) break
+      j++
+    }
+  }
+  return undefined
+}
+
 // Run the action
 if (import.meta.main) {
   run()
@@ -533,9 +619,12 @@ export {
   parseLockfile,
   parseNpmLock,
   parsePnpmLock,
-  parseYarnLockV1,
-  yarnSpecifierToName,
+  parseYarnV1Lock,
+  parseYarnBerryLock,
+  yarnV1SpecifierToName,
+  yarnBerrySpecifierToName,
   diffDependencySets,
+  findLockfileLine,
   hasProvenance,
   hasTrustedPublisher,
 }
