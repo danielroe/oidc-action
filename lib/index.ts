@@ -1,6 +1,3 @@
-/**
- * Main entry point
- */
 import { execFile as _execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
