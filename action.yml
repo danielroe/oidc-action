@@ -1,11 +1,11 @@
-name: 'Provenance downgrade check'
-description: 'Detect and fail CI when dependencies in your lockfile lose npm provenance or trusted publisher status.'
-author: 'Daniel Roe (@danielroe)'
+name: Provenance downgrade check
+description: Detect and fail CI when dependencies in your lockfile lose npm provenance or trusted publisher status.
+author: Daniel Roe (@danielroe)
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: 'shield'
-  color: 'purple'
+  icon: shield
+  color: purple
 
 inputs:
   lockfile:
@@ -14,7 +14,7 @@ inputs:
   workspace-path:
     description: 'Path to workspace root (default: GITHUB_WORKSPACE)'
     required: false
-    default: '.'
+    default: .
   base-ref:
     description: 'Git ref to compare against (e.g., origin/main)'
     required: false

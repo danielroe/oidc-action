@@ -1,8 +1,10 @@
+import { Buffer } from 'node:buffer'
 import { execFile as _execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 import * as https from 'node:https'
+import { join } from 'node:path'
+import process from 'node:process'
+import { promisify } from 'node:util'
 
 const execFile = promisify(_execFile)
 
@@ -49,10 +51,10 @@ async function run(): Promise<void> {
     const provenanceDetailsCache = new Map<string, ProvenanceDetails>()
     const trustedPublisherCache = new Map<string, boolean>()
     type DowngradeType = 'provenance' | 'trusted_publisher'
-    type DowngradeEvent = { name: string, from: string, to: string, downgradeType: DowngradeType, keptProvenance?: boolean }
+    interface DowngradeEvent { name: string, from: string, to: string, downgradeType: DowngradeType, keptProvenance?: boolean }
     const events: DowngradeEvent[] = []
     type ChangeWarningType = 'repo_changed' | 'branch_changed'
-    type ChangeWarning = { name: string, from: string, to: string, type: ChangeWarningType, prevRepo?: string, newRepo?: string, prevBranch?: string, newBranch?: string }
+    interface ChangeWarning { name: string, from: string, to: string, type: ChangeWarningType, prevRepo?: string, newRepo?: string, prevBranch?: string, newBranch?: string }
     const warnings: ChangeWarning[] = []
 
     for (const change of changed) {
@@ -62,7 +64,8 @@ async function run(): Promise<void> {
 
       // For each newly introduced version, compare against any previous version that had provenance
       for (const newVersion of change.current) {
-        if (change.previous.has(newVersion)) continue
+        if (change.previous.has(newVersion))
+          continue
 
         const hasProvNew = await hasProvenance(change.name, newVersion, provenanceCache)
         const newDetails = await getProvenanceDetails(change.name, newVersion, provenanceDetailsCache)
@@ -94,7 +97,8 @@ async function run(): Promise<void> {
         if (hasProvNew) {
           for (const prevVersion of change.previous) {
             const prevDetails = await getProvenanceDetails(change.name, prevVersion, provenanceDetailsCache)
-            if (!prevDetails.has) continue
+            if (!prevDetails.has)
+              continue
             // Repository change
             if (prevDetails.repository && newDetails.repository && prevDetails.repository !== newDetails.repository) {
               warnings.push({ name: change.name, from: prevVersion, to: newVersion, type: 'repo_changed', prevRepo: prevDetails.repository, newRepo: newDetails.repository })
@@ -130,8 +134,9 @@ async function run(): Promise<void> {
     }
 
     if (warnings.length > 0) {
-      const warnLines = warnings.map(w => {
-        if (w.type === 'repo_changed') return `- ${w.name}: ${w.from} -> ${w.to} [provenance repository changed: ${w.prevRepo} -> ${w.newRepo}]`
+      const warnLines = warnings.map((w) => {
+        if (w.type === 'repo_changed')
+          return `- ${w.name}: ${w.from} -> ${w.to} [provenance repository changed: ${w.prevRepo} -> ${w.newRepo}]`
         return `- ${w.name}: ${w.from} -> ${w.to} [provenance branch changed: ${w.prevBranch} -> ${w.newBranch}]`
       })
       log('Detected provenance changes:')
@@ -147,7 +152,8 @@ async function run(): Promise<void> {
       const base = d.downgradeType === 'provenance' ? 'lost npm provenance' : 'lost trusted publisher'
       const extra = d.downgradeType === 'trusted_publisher' && d.keptProvenance ? ' (kept provenance)' : ''
       const msg = `${d.name} ${base}: ${d.from} -> ${d.to}${extra}`
-      if (line) annotate(level, lockfilePath, line, 1, msg)
+      if (line)
+        annotate(level, lockfilePath, line, 1, msg)
       else annotate(level, lockfilePath, 1, 1, msg)
     }
 
@@ -158,7 +164,8 @@ async function run(): Promise<void> {
         ? `${w.name} provenance repository changed: ${w.prevRepo} -> ${w.newRepo}`
         : `${w.name} provenance branch changed: ${w.prevBranch} -> ${w.newBranch}`
       const level = failOnProvChange ? 'error' : 'warning'
-      if (line) annotate(level, lockfilePath, line, 1, msg)
+      if (line)
+        annotate(level, lockfilePath, line, 1, msg)
       else annotate(level, lockfilePath, 1, 1, msg)
     }
 
@@ -182,9 +189,11 @@ async function run(): Promise<void> {
     if (failAnyDowngrade || failOnlyProvenanceLoss || failOnProvChange) {
       const hasFailDowngrade = events.some(e => failAnyDowngrade || (failOnlyProvenanceLoss && e.downgradeType === 'provenance'))
       const hasFailProvChange = failOnProvChange && warnings.length > 0
-      if (hasFailDowngrade || hasFailProvChange) process.exitCode = 1
+      if (hasFailDowngrade || hasFailProvChange)
+        process.exitCode = 1
     }
-  } catch (err) {
+  }
+  catch (err) {
     logError(err)
     process.exitCode = 1
   }
@@ -198,7 +207,8 @@ function getInput(name: string): string | undefined {
 function detectLockfile(workspacePath: string): string | undefined {
   const candidates = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock']
   for (const c of candidates) {
-    if (existsSync(join(workspacePath, c))) return c
+    if (existsSync(join(workspacePath, c)))
+      return c
   }
   return undefined
 }
@@ -212,8 +222,10 @@ async function guessDefaultBaseRef(): Promise<string> {
   try {
     const { stdout } = await execFile('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], { cwd: process.cwd() })
     const m = stdout.trim().match(/refs\/remotes\/origin\/(.*)$/)
-    if (m) return `origin/${m[1]}`
-  } catch {}
+    if (m)
+      return `origin/${m[1]}`
+  }
+  catch {}
   return 'origin/main'
 }
 
@@ -221,22 +233,27 @@ async function gitShowFile(ref: string, filePath: string, cwd: string): Promise<
   try {
     const { stdout } = await execFile('git', ['show', `${ref}:${filePath}`], { cwd })
     return stdout
-  } catch {
+  }
+  catch {
     // Try previous commit as a fallback if ref failed
     try {
       const { stdout } = await execFile('git', ['show', `HEAD^:${filePath}`], { cwd })
       return stdout
-    } catch {
+    }
+    catch {
       return undefined
     }
   }
 }
 
 function parseLockfile(lockfilePath: string, content: string): VersionsSet {
-  if (lockfilePath.endsWith('package-lock.json')) return parseNpmLock(content)
-  if (lockfilePath.endsWith('pnpm-lock.yaml')) return parsePnpmLock(content)
+  if (lockfilePath.endsWith('package-lock.json'))
+    return parseNpmLock(content)
+  if (lockfilePath.endsWith('pnpm-lock.yaml'))
+    return parsePnpmLock(content)
   if (lockfilePath.endsWith('yarn.lock')) {
-    if (content.includes('yarn lockfile v1')) return parseYarnV1Lock(content)
+    if (content.includes('yarn lockfile v1'))
+      return parseYarnV1Lock(content)
     return parseYarnBerryLock(content)
   }
   return new Map()
@@ -247,16 +264,19 @@ function parseNpmLock(content: string): VersionsSet {
   let json: any
   try {
     json = JSON.parse(content)
-  } catch {
+  }
+  catch {
     return result
   }
   const packages = json.packages || {}
   for (const key of Object.keys(packages)) {
     const entry = packages[key]
     const version: string | undefined = entry && entry.version
-    if (!version) continue
+    if (!version)
+      continue
     // Skip the root project entry
-    if (key === '') continue
+    if (key === '')
+      continue
     let name: string | undefined = entry.name
     if (!name) {
       // Derive from path like "node_modules/@scope/name/..."
@@ -266,7 +286,8 @@ function parseNpmLock(content: string): VersionsSet {
         name = last
       }
     }
-    if (!name) continue
+    if (!name)
+      continue
     addVersion(result, name, version)
   }
   return result
@@ -285,29 +306,33 @@ function parsePnpmLock(content: string): VersionsSet {
       continue
     }
     // Stop if next top-level section reached
-    if (/^[^\s].*:$/.test(line)) {
+    if (/^\S.*:$/.test(line)) {
       // another top-level section
       inPackages = /^packages:\s*$/.test(line)
       continue
     }
     // Match entries like "  /name@1.2.3:" or "  /@scope/name@1.2.3(peer@x):"
-    const m = /^\s{2}([^\s].*?):\s*$/.exec(line)
-    if (!m) continue
+    const m = /^\s{2}(\S.*?):\s*$/.exec(line)
+    if (!m)
+      continue
     let key = m[1]
     // Keys typically start with '/'
-    if (key.startsWith("/")) key = key.slice(1)
+    if (key.startsWith('/'))
+      key = key.slice(1)
     // Remove surrounding quotes if any
-    if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith('\'') && key.endsWith('\''))) {
       key = key.slice(1, -1)
     }
     // Remove any peer info suffix like "(peer@x)"
     const core = key.includes('(') ? key.slice(0, key.indexOf('(')) : key
     // Extract name and version by last '@' BEFORE peer info
     const at = core.lastIndexOf('@')
-    if (at <= 0) continue
+    if (at <= 0)
+      continue
     const name = core.slice(0, at)
     const version = core.slice(at + 1).trim()
-    if (!version) continue
+    if (!version)
+      continue
     addVersion(result, name, version)
   }
   return result
@@ -320,8 +345,14 @@ function parseYarnV1Lock(content: string): VersionsSet {
   while (i < lines.length) {
     let line = lines[i]
     // Find block header: one or more specifiers ending with ':' possibly continued with commas
-    if (!line || /^\s/.test(line)) { i++; continue }
-    if (!line.trimEnd().endsWith(':')) { i++; continue }
+    if (!line || /^\s/.test(line)) {
+      i++
+      continue
+    }
+    if (!line.trimEnd().endsWith(':')) {
+      i++
+      continue
+    }
 
     // Collect all header lines (can span multiple lines if specifiers are split)
     const headerLines: string[] = []
@@ -329,7 +360,8 @@ function parseYarnV1Lock(content: string): VersionsSet {
       const hl = lines[i]
       headerLines.push(hl)
       i++
-      if (!lines[i] || lines[i].startsWith('  ')) break
+      if (!lines[i] || lines[i].startsWith('  '))
+        break
     }
     const specifiers = headerLines.join('\n')
       .split(',\n')
@@ -341,15 +373,19 @@ function parseYarnV1Lock(content: string): VersionsSet {
     let version: string | undefined
     while (i < lines.length) {
       line = lines[i]
-      if (!line || (!line.startsWith(' ') && line.trimEnd().endsWith(':'))) break
+      if (!line || (!line.startsWith(' ') && line.trimEnd().endsWith(':')))
+        break
       const vm = /^\s{2}version\s+"([^"]+)"/.exec(line)
-      if (vm) version = vm[1]
+      if (vm)
+        version = vm[1]
       i++
     }
-    if (!version) continue
+    if (!version)
+      continue
     for (const spec of specifiers) {
       const name = yarnV1SpecifierToName(spec)
-      if (name) addVersion(result, name, version)
+      if (name)
+        addVersion(result, name, version)
     }
   }
   return result
@@ -363,11 +399,20 @@ function parseYarnBerryLock(content: string): VersionsSet {
     let line = lines[i]
 
     // Skip blanks and comments
-    if (!line || line.trimStart().startsWith('#')) { i++; continue }
+    if (!line || line.trimStart().startsWith('#')) {
+      i++
+      continue
+    }
 
     // Yarn Berry keys are quoted descriptors, possibly multiple separated by commas
-    if (!line.startsWith('"') && !line.startsWith('\'')) { i++; continue }
-    if (!line.trimEnd().endsWith(':')) { i++; continue }
+    if (!line.startsWith('"') && !line.startsWith('\'')) {
+      i++
+      continue
+    }
+    if (!line.trimEnd().endsWith(':')) {
+      i++
+      continue
+    }
 
     // Collect header (usually single line); split by commas into individual descriptors
     const headerLine = line.trim()
@@ -382,19 +427,27 @@ function parseYarnBerryLock(content: string): VersionsSet {
     let version: string | undefined
     while (i < lines.length) {
       line = lines[i]
-      if (!line) { break }
-      if (!line.startsWith(' ')) { break }
-      const vm = /^\s{2}version:\s*(?:"([^\"]+)"|'([^']+)'|([^\s#]+))/.exec(line)
+      if (!line) {
+        break
+      }
+      if (!line.startsWith(' ')) {
+        break
+      }
+      const vm = /^\s{2}version:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))/.exec(line)
       if (vm) {
         version = vm[1] || vm[2] || vm[3]
       }
       i++
     }
 
-    if (!version) { continue }
+    if (!version) {
+      continue
+    }
     for (const spec of specifiers) {
       const name = yarnBerrySpecifierToName(spec)
-      if (name) { addVersion(result, name, version) }
+      if (name) {
+        addVersion(result, name, version)
+      }
     }
   }
   return result
@@ -404,7 +457,8 @@ function yarnV1SpecifierToName(spec: string): string | undefined {
   // Examples: lodash@^4.17.21, @scope/name@^1.2.3, name@npm:^1.0.0, name@patch:...
   // Take everything before the last '@'
   const at = spec.lastIndexOf('@')
-  if (at <= 0) return undefined
+  if (at <= 0)
+    return undefined
   return spec.slice(0, at)
 }
 
@@ -413,17 +467,24 @@ function yarnBerrySpecifierToName(spec: string): string | undefined {
   const s = spec.replace(/^"|"$/g, '').replace(/^'|'$/g, '')
   if (s.startsWith('@')) {
     const at2 = s.indexOf('@', 1)
-    if (at2 <= 0) { return undefined }
+    if (at2 <= 0) {
+      return undefined
+    }
     return s.slice(0, at2)
   }
   const at1 = s.indexOf('@')
-  if (at1 <= 0) { return undefined }
+  if (at1 <= 0) {
+    return undefined
+  }
   return s.slice(0, at1)
 }
 
 function addVersion(map: VersionsSet, name: string, version: string): void {
   let set = map.get(name)
-  if (!set) { set = new Set(); map.set(name, set) }
+  if (!set) {
+    set = new Set()
+    map.set(name, set)
+  }
   set.add(version)
 }
 
@@ -441,21 +502,26 @@ function diffDependencySets(prev: VersionsSet, curr: VersionsSet): Array<{ name:
 }
 
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false
-  for (const v of a) if (!b.has(v)) return false
+  if (a.size !== b.size)
+    return false
+  for (const v of a) {
+    if (!b.has(v))
+      return false
+  }
   return true
 }
 
 async function hasProvenance(name: string, version: string, cache: Map<string, boolean>): Promise<boolean> {
   const key = `${name}@${version}`
-  if (cache.has(key)) return cache.get(key) as boolean
+  if (cache.has(key))
+    return cache.get(key) as boolean
 
   // Try attestations endpoint(s)
   const encodedName = encodeURIComponent(name)
   const encodedVersion = encodeURIComponent(version)
   const attestUrls = [
     `https://registry.npmjs.org/-/npm/v1/attestations/${encodedName}@${encodedVersion}`,
-    `https://registry.npmjs.org/-/v1/attestations/${encodedName}@${encodedVersion}`
+    `https://registry.npmjs.org/-/v1/attestations/${encodedName}@${encodedVersion}`,
   ]
   let endpointSaidHas = false
   for (const url of attestUrls) {
@@ -470,7 +536,8 @@ async function hasProvenance(name: string, version: string, cache: Map<string, b
       // If explicitly empty, conclude no provenance
       cache.set(key, false)
       return false
-    } catch (e: any) {
+    }
+    catch (e: any) {
       // 404 means no provenance for this version
       if (e && e.statusCode === 404) {
         cache.set(key, false)
@@ -490,42 +557,45 @@ async function hasProvenance(name: string, version: string, cache: Map<string, b
     const meta = await httpJson(packageMetadataUrl(name))
     const ver = meta && meta.versions && meta.versions[version]
     const has = Boolean(ver && (
-      ver.provenance ||
-      (ver.dist && (
-        ver.dist.provenance ||
+      ver.provenance
+      || (ver.dist && (
+        ver.dist.provenance
         // npm exposes an attestations object when provenance exists
-        (ver.dist.attestations && (
+        || (ver.dist.attestations && (
           typeof ver.dist.attestations === 'object' || Array.isArray(ver.dist.attestations)
         ))
       ))
     ))
     cache.set(key, has)
     return has
-  } catch {
+  }
+  catch {
     cache.set(key, false)
     return false
   }
 }
 
-type ProvenanceDetails = { has: boolean, repository?: string, ref?: string, branch?: string }
+interface ProvenanceDetails { has: boolean, repository?: string, ref?: string, branch?: string }
 
 async function getProvenanceDetails(name: string, version: string, cache: Map<string, ProvenanceDetails>): Promise<ProvenanceDetails> {
   const key = `${name}@${version}`
-  if (cache.has(key)) return cache.get(key) as ProvenanceDetails
+  if (cache.has(key))
+    return cache.get(key) as ProvenanceDetails
 
   const details: ProvenanceDetails = { has: false }
   const encodedName = encodeURIComponent(name)
   const encodedVersion = encodeURIComponent(version)
   const attestUrls = [
     `https://registry.npmjs.org/-/npm/v1/attestations/${encodedName}@${encodedVersion}`,
-    `https://registry.npmjs.org/-/v1/attestations/${encodedName}@${encodedVersion}`
+    `https://registry.npmjs.org/-/v1/attestations/${encodedName}@${encodedVersion}`,
   ]
 
   for (const url of attestUrls) {
     try {
       const res = await httpJson(url)
       const attestations: any[] = Array.isArray(res?.attestations) ? res.attestations : []
-      if (attestations.length === 0) continue
+      if (attestations.length === 0)
+        continue
       // Mark has provenance if any attestation exists
       details.has = true
       // Try to extract repo/ref from any attestation
@@ -534,12 +604,15 @@ async function getProvenanceDetails(name: string, version: string, cache: Map<st
         if (repository || ref) {
           details.repository = repository || details.repository
           details.ref = ref || details.ref
-          if (details.ref) details.branch = normalizeRefToBranch(details.ref)
-          if (details.repository && details.branch) break
+          if (details.ref)
+            details.branch = normalizeRefToBranch(details.ref)
+          if (details.repository && details.branch)
+            break
         }
       }
       break
-    } catch (e: any) {
+    }
+    catch (e: any) {
       if (e && e.statusCode === 404) {
         // No provenance
         cache.set(key, details)
@@ -564,13 +637,16 @@ async function getProvenanceDetails(name: string, version: string, cache: Map<st
             if (repository || ref) {
               details.repository = repository || details.repository
               details.ref = ref || details.ref
-              if (details.ref) details.branch = normalizeRefToBranch(details.ref)
-              if (details.repository && details.branch) break
+              if (details.ref)
+                details.branch = normalizeRefToBranch(details.ref)
+              if (details.repository && details.branch)
+                break
             }
           }
         }
       }
-    } catch {
+    }
+    catch {
       // ignore
     }
   }
@@ -593,8 +669,10 @@ function extractRepoAndRef(att: any): { repository?: string, ref?: string } {
   let ref: string | undefined
 
   // Direct workflow fields
-  if (typeof workflow?.repository === 'string') repository = normalizeRepository(workflow.repository)
-  if (typeof workflow?.ref === 'string') ref = workflow.ref
+  if (typeof workflow?.repository === 'string')
+    repository = normalizeRepository(workflow.repository)
+  if (typeof workflow?.ref === 'string')
+    ref = workflow.ref
 
   // configSource.uri like git+https://github.com/owner/repo@refs/heads/main
   const uri = typeof configSource?.uri === 'string' ? configSource.uri : undefined
@@ -612,7 +690,10 @@ function extractRepoAndRef(att: any): { repository?: string, ref?: string } {
     for (const d of deps) {
       const u = typeof d?.uri === 'string' ? d.uri : undefined
       const parsed = u ? parseRepoRefFromUri(u) : undefined
-      if (parsed?.repository) { repository = parsed.repository; break }
+      if (parsed?.repository) {
+        repository = parsed.repository
+        break
+      }
     }
   }
 
@@ -621,14 +702,17 @@ function extractRepoAndRef(att: any): { repository?: string, ref?: string } {
 
 function normalizeRepository(repo: string): string {
   // Accept formats like owner/repo or https://github.com/owner/repo(.git)
-  if (/^[^\s/]+\/[^^\s/]+$/.test(repo)) return repo.replace(/\.git$/, '')
+  if (/^[^\s/]+\/[^^\s/]+$/.test(repo))
+    return repo.replace(/\.git$/, '')
   try {
     const url = new URL(repo.replace(/^git\+/, ''))
     if (url.hostname === 'github.com' || url.hostname.endsWith('.github.com')) {
       const parts = url.pathname.replace(/\.git$/, '').split('/').filter(Boolean)
-      if (parts.length >= 2) return `${parts[0]}/${parts[1]}`
+      if (parts.length >= 2)
+        return `${parts[0]}/${parts[1]}`
     }
-  } catch {}
+  }
+  catch {}
   return repo
 }
 
@@ -645,25 +729,31 @@ function parseRepoRefFromUri(uri: string): { repository?: string, ref?: string }
     }
     const url = new URL(repoUrl)
     const allowedHosts = ['github.com', 'www.github.com']
-    if (!allowedHosts.includes(url.hostname)) return undefined
+    if (!allowedHosts.includes(url.hostname))
+      return undefined
     const parts = url.pathname.replace(/\.git$/, '').split('/').filter(Boolean)
-    if (parts.length < 2) return undefined
+    if (parts.length < 2)
+      return undefined
     const repository = `${parts[0]}/${parts[1]}`
     return { repository, ref }
-  } catch {
+  }
+  catch {
     return undefined
   }
 }
 
 function normalizeRefToBranch(ref?: string): string | undefined {
-  if (!ref || typeof ref !== 'string') return undefined
-  if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length)
+  if (!ref || typeof ref !== 'string')
+    return undefined
+  if (ref.startsWith('refs/heads/'))
+    return ref.slice('refs/heads/'.length)
   return undefined
 }
 
 async function hasTrustedPublisher(name: string, version: string, cache: Map<string, boolean>): Promise<boolean> {
   const key = `${name}@${version}`
-  if (cache.has(key)) return cache.get(key) as boolean
+  if (cache.has(key))
+    return cache.get(key) as boolean
   try {
     const meta = await httpJson(packageMetadataUrl(name))
     const ver = meta && meta.versions && meta.versions[version]
@@ -671,7 +761,8 @@ async function hasTrustedPublisher(name: string, version: string, cache: Map<str
       || Boolean(ver && ver._npmUser && ver._npmUser.name === 'GitHub Actions' && ver._npmUser.email === 'npm-oidc-no-reply@github.com')
     cache.set(key, tp)
     return tp
-  } catch {
+  }
+  catch {
     cache.set(key, false)
     return false
   }
@@ -684,11 +775,14 @@ function packageMetadataUrl(name: string): string {
 
 function httpJson(url: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'Accept': 'application/json' } }, (res) => {
+    const req = https.get(url, { headers: { Accept: 'application/json' } }, (res) => {
       const { statusCode } = res
-      if (!statusCode) { reject(new Error('No status code')); return }
+      if (!statusCode) {
+        reject(new Error('No status code'))
+        return
+      }
       const chunks: Buffer[] = []
-      res.on('data', (d) => chunks.push(typeof d === 'string' ? Buffer.from(d) : d))
+      res.on('data', d => chunks.push(typeof d === 'string' ? Buffer.from(d) : d))
       res.on('end', () => {
         const body = Buffer.concat(chunks).toString('utf8')
         if (statusCode < 200 || statusCode >= 300) {
@@ -700,7 +794,8 @@ function httpJson(url: string): Promise<any> {
         }
         try {
           resolve(body ? JSON.parse(body) : {})
-        } catch (e) {
+        }
+        catch (e) {
           reject(e)
         }
       })
@@ -711,13 +806,15 @@ function httpJson(url: string): Promise<any> {
 
 function setOutput(name: string, value: string): void {
   const filepath = process.env.GITHUB_OUTPUT
-  if (!filepath) return
+  if (!filepath)
+    return
   writeFileSync(filepath, `${name}<<__EOF__\n${value}\n__EOF__\n`, { encoding: 'utf8', flag: 'a' })
 }
 
 function appendSummary(text: string): void {
   const filepath = process.env.GITHUB_STEP_SUMMARY
-  if (!filepath) return
+  if (!filepath)
+    return
   writeFileSync(filepath, `${text}\n`, { encoding: 'utf8', flag: 'a' })
 }
 
@@ -727,7 +824,6 @@ function log(message: any): void {
 }
 
 function logError(err: any): void {
-  // eslint-disable-next-line no-console
   console.error(err instanceof Error ? err.stack || err.message : String(err))
 }
 
@@ -741,10 +837,13 @@ function annotate(level: 'error' | 'warning', file: string, line: number, col: n
 }
 
 function findLockfileLine(lockfilePath: string, content: string, name: string, version: string): number | undefined {
-  if (lockfilePath.endsWith('package-lock.json')) return findLineInNpmLock(content, name)
-  if (lockfilePath.endsWith('pnpm-lock.yaml')) return findLineInPnpmLock(content, name, version)
+  if (lockfilePath.endsWith('package-lock.json'))
+    return findLineInNpmLock(content, name)
+  if (lockfilePath.endsWith('pnpm-lock.yaml'))
+    return findLineInPnpmLock(content, name, version)
   if (lockfilePath.endsWith('yarn.lock')) {
-    if (content.includes('yarn lockfile v1')) return findLineInYarnV1Lock(content, name, version)
+    if (content.includes('yarn lockfile v1'))
+      return findLineInYarnV1Lock(content, name, version)
     return findLineInYarnBerryLock(content, name, version)
   }
   return undefined
@@ -752,7 +851,10 @@ function findLockfileLine(lockfilePath: string, content: string, name: string, v
 
 function countLinesBefore(content: string, index: number): number {
   let count = 1
-  for (let i = 0; i < index && i < content.length; i++) if (content.charCodeAt(i) === 10) count++
+  for (let i = 0; i < index && i < content.length; i++) {
+    if (content.charCodeAt(i) === 10)
+      count++
+  }
   return count
 }
 
@@ -760,11 +862,13 @@ function findLineInNpmLock(content: string, name: string): number | undefined {
   // Look for key line of the package block
   const key = `"node_modules/${name}"`
   const idx = content.indexOf(key)
-  if (idx >= 0) return countLinesBefore(content, idx)
+  if (idx >= 0)
+    return countLinesBefore(content, idx)
   // Fallback: try to find a "name": "<name>" occurrence
   const alt = `"name": "${name}"`
   const j = content.indexOf(alt)
-  if (j >= 0) return countLinesBefore(content, j)
+  if (j >= 0)
+    return countLinesBefore(content, j)
   return undefined
 }
 
@@ -773,14 +877,18 @@ function findLineInPnpmLock(content: string, name: string, version: string): num
   const needle = `/${name}@${version}`
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i]
-    if (!l) continue
-    if (l.includes(needle) && l.trimEnd().endsWith(':')) return i + 1
+    if (!l)
+      continue
+    if (l.includes(needle) && l.trimEnd().endsWith(':'))
+      return i + 1
   }
   // Fallback: match start-with and allow peer suffix
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i]
-    if (!l) continue
-    if (l.trimStart().startsWith(`/${name}@${version}`)) return i + 1
+    if (!l)
+      continue
+    if (l.trimStart().startsWith(`/${name}@${version}`))
+      return i + 1
   }
   return undefined
 }
@@ -789,17 +897,22 @@ function findLineInYarnV1Lock(content: string, name: string, version: string): n
   const lines = content.split(/\r?\n/)
   for (let i = 0; i < lines.length; i++) {
     const header = lines[i]
-    if (!header || header.startsWith(' ')) continue
-    if (!header.trimEnd().endsWith(':')) continue
+    if (!header || header.startsWith(' '))
+      continue
+    if (!header.trimEnd().endsWith(':'))
+      continue
     // Header contains one or more specifiers
-    if (!header.includes(`${name}@`)) continue
+    if (!header.includes(`${name}@`))
+      continue
     // Scan block for version line
     let j = i + 1
     while (j < lines.length && (lines[j].startsWith(' ') || !lines[j])) {
       const m = /^\s{2}version\s+"([^"]+)"/.exec(lines[j])
-      if (m && m[1] === version) return j + 1
+      if (m && m[1] === version)
+        return j + 1
       // Next block if encounter another header-like line without indentation
-      if (lines[j] && !lines[j].startsWith(' ') && lines[j].trimEnd().endsWith(':')) break
+      if (lines[j] && !lines[j].startsWith(' ') && lines[j].trimEnd().endsWith(':'))
+        break
       j++
     }
   }
@@ -810,18 +923,23 @@ function findLineInYarnBerryLock(content: string, name: string, version: string)
   const lines = content.split(/\r?\n/)
   for (let i = 0; i < lines.length; i++) {
     const header = lines[i]
-    if (!header || header.startsWith(' ') || header.trimStart().startsWith('#')) continue
-    if (!header.trimEnd().endsWith(':')) continue
+    if (!header || header.startsWith(' ') || header.trimStart().startsWith('#'))
+      continue
+    if (!header.trimEnd().endsWith(':'))
+      continue
     // Header contains one or more specifiers
-    if (!header.includes(`${name}@`)) continue
+    if (!header.includes(`${name}@`))
+      continue
     // Scan block for version line
     let j = i + 1
     while (j < lines.length && (lines[j].startsWith(' ') || !lines[j])) {
-      const m = /^\s{2}version:\s*(?:"([^\"]+)"|'([^']+)'|([^\s#]+))/.exec(lines[j])
+      const m = /^\s{2}version:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))/.exec(lines[j])
       const ver = m ? (m[1] || m[2] || m[3]) : undefined
-      if (ver === version) return j + 1
+      if (ver === version)
+        return j + 1
       // Next block if encounter another header-like line without indentation
-      if (lines[j] && !lines[j].startsWith(' ') && lines[j].trimEnd().endsWith(':')) break
+      if (lines[j] && !lines[j].startsWith(' ') && lines[j].trimEnd().endsWith(':'))
+        break
       j++
     }
   }
@@ -836,15 +954,15 @@ if (import.meta.main) {
 export { run }
 export type { VersionsSet }
 export {
-  parseLockfile,
-  parseNpmLock,
-  parsePnpmLock,
-  parseYarnV1Lock,
-  parseYarnBerryLock,
-  yarnV1SpecifierToName,
-  yarnBerrySpecifierToName,
   diffDependencySets,
   findLockfileLine,
   hasProvenance,
   hasTrustedPublisher,
+  parseLockfile,
+  parseNpmLock,
+  parsePnpmLock,
+  parseYarnBerryLock,
+  parseYarnV1Lock,
+  yarnBerrySpecifierToName,
+  yarnV1SpecifierToName,
 }

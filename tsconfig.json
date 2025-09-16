@@ -2,10 +2,10 @@
   "compilerOptions": {
     "target": "ES2019",
     "module": "Node16",
-    "noEmit": true,
     "moduleResolution": "Node16",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true
   },
   "exclude": [
     "dist",

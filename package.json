@@ -1,26 +1,29 @@
 {
   "name": "provenance-action",
-  "version": "0.0.1",
   "type": "module",
+  "version": "0.0.1",
+  "packageManager": "pnpm@10.15.0",
   "description": "GitHub Action that detects dependency provenance downgrades from lockfile changes (npm/pnpm/yarn).",
+  "author": "Daniel Roe <daniel@roe.dev>",
+  "license": "MIT",
+  "keywords": [],
   "main": "lib/index.ts",
   "scripts": {
     "test": "node --test",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "prepare": "simple-git-hooks",
     "release": "bumpp"
   },
-  "keywords": [],
-  "author": "Daniel Roe <daniel@roe.dev>",
-  "license": "MIT",
   "devDependencies": {
+    "@antfu/eslint-config": "5.3.0",
     "@types/node": "24.5.0",
     "bumpp": "10.2.3",
+    "eslint": "9.35.0",
     "simple-git-hooks": "2.13.1",
     "typescript": "5.9.2"
   },
   "simple-git-hooks": {
     "pre-commit": "echo 1"
-  },
-  "packageManager": "pnpm@10.15.0"
+  }
 }

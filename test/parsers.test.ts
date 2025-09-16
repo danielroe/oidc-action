@@ -1,6 +1,7 @@
-import { test } from 'node:test'
+import type { VersionsSet } from '../lib/index.ts'
 import { strict as assert } from 'node:assert'
-import { diffDependencySets, findLockfileLine, parseLockfile, parseNpmLock, parsePnpmLock, parseYarnBerryLock, parseYarnV1Lock, type VersionsSet, yarnBerrySpecifierToName, yarnV1SpecifierToName } from '../lib/index.ts'
+import { test } from 'node:test'
+import { diffDependencySets, findLockfileLine, parseLockfile, parseNpmLock, parsePnpmLock, parseYarnBerryLock, parseYarnV1Lock, yarnBerrySpecifierToName, yarnV1SpecifierToName } from '../lib/index.ts'
 
 function toSorted(obj: VersionsSet): Record<string, string[]> {
   const out: Record<string, string[]> = {}
@@ -16,9 +17,9 @@ const packageLockJson = JSON.stringify({
     'node_modules/lodash': { version: '4.17.21' },
     'node_modules/@scope/name': { version: '2.3.4' },
   },
-});
+})
 
- const pnpmLock = `lockfileVersion: 9.0
+const pnpmLock = `lockfileVersion: 9.0
 
 packages:
 
@@ -119,18 +120,18 @@ test('diffDependencySets identifies changes', () => {
 test('findLockfileLine finds lines in lockfiles', () => {
   assert.equal(
     findLockfileLine('package-lock.json', packageLockJson, 'lodash', '4.17.21'),
-    1 // version: 4.17.21
+    1, // version: 4.17.21
   )
   assert.equal(
     findLockfileLine('pnpm-lock.yaml', pnpmLock, 'lodash', '4.17.21'),
-    5 // resolution: {integrity: sha512-...}
+    5, // resolution: {integrity: sha512-...}
   )
   assert.equal(
     findLockfileLine('yarn.lock', yarnV1Lock, 'lodash', '4.17.21'),
-    6 // resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz"
+    6, // resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz"
   )
   assert.equal(
     findLockfileLine('yarn.lock', yarnBerryLock, 'lodash', '4.17.21'),
-    9 // resolution: "lodash@npm:4.17.21"
+    9, // resolution: "lodash@npm:4.17.21"
   )
 })

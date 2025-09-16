@@ -2,7 +2,7 @@
 
 Detect and fail CI when dependencies in your lockfile lose npm provenance or trusted publisher status.
 
-> [!WARNING]  
+> [!WARNING]
 > This action is under active development and is only one tool to assist in securing your dependencies.
 
 ## ✨ Features
@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check provenance downgrades
-        uses: danielroe/provenance-action
+        uses: danielroe/provenance-action@latest
         id: check
         with:
           fail-on-provenance-change: true # optional, default: false
@@ -37,7 +37,7 @@ jobs:
         #   base-ref: origin/main         # optional, default: origin/main
         #   fail-on-downgrade: true       # optional, default: true
       - name: Print result
-        run: echo "Downgraded: ${{ steps.check.outputs.downgraded }}"
+        run: "echo 'Downgraded: ${{ steps.check.outputs.downgraded }}'"
 ```
 
 ## 🔧 Inputs
