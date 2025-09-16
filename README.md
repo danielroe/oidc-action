@@ -1,9 +1,9 @@
-# Provenance downgrade check
+# `danielroe/provenance-action`
 
 Detect dependencies that lost npm provenance (trusted publishing) from your lockfile.
 
 > [!WARNING]  
-> This action is a work in progress and should not be relied upon.
+> This action is under active development and is only one tool to assist in securing your dependencies.
 
 ## ✨ Features
 - `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock` (v1)
