@@ -6,7 +6,7 @@ Detect and fail CI when dependencies in your lockfile lose npm provenance or tru
 > This action is under active development and is only one tool to assist in securing your dependencies.
 
 ## ✨ Features
-- `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock` (v1)
+- `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock` (v1 and v2+)
 - Handles transitives by comparing resolved versions
 - Inline GitHub annotations at the lockfile line
 - JSON output and optional hard‑fail (default: on)
