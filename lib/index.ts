@@ -644,7 +644,8 @@ function parseRepoRefFromUri(uri: string): { repository?: string, ref?: string }
       ref = cleaned.slice(at + 1)
     }
     const url = new URL(repoUrl)
-    if (!url.hostname.endsWith('github.com')) return undefined
+    const allowedHosts = ['github.com', 'www.github.com']
+    if (!allowedHosts.includes(url.hostname)) return undefined
     const parts = url.pathname.replace(/\.git$/, '').split('/').filter(Boolean)
     if (parts.length < 2) return undefined
     const repository = `${parts[0]}/${parts[1]}`
