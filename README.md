@@ -43,10 +43,10 @@ jobs:
 - `lockfile` (optional): Path to the lockfile. Auto-detected if omitted.
 - `workspace-path` (optional): Path to workspace root. Default: `.`
 - `base-ref` (optional): Git ref to compare against. Default: `origin/main`.
-- `fail-on-downgrade` (optional): If `true`, the step exits non‑zero on downgrade. Default: `true`.
+- `fail-on-downgrade` (optional): Controls failure behavior. Accepts `true`, `false`, `any`, or `only-provenance-loss`. Default: `true` (which is the same as `any`).
 
 ## 📤 Outputs
-- `downgraded`: JSON array of `{ name, from, to }` for packages that lost provenance.
+- `downgraded`: JSON array of `{ name, from, to, downgradeType }` for detected downgrades. `downgradeType` is `provenance` or `trusted_publisher`.
 
 ## 🧠 How it works
 1. Diffs your lockfile against the base ref and collects changed resolved versions (including transitives).

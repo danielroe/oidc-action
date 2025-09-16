@@ -19,13 +19,13 @@ inputs:
     description: 'Git ref to compare against (e.g., origin/main)'
     required: false
   fail-on-downgrade:
-    description: 'Fail the job if a downgrade is detected'
+    description: 'Fail behavior: true|false|any|only-provenance-loss (default: true)'
     required: false
     default: 'true'
 
 outputs:
   downgraded:
-    description: 'JSON array of { name, from, to } for versions that lost provenance'
+    description: 'JSON array of { name, from, to, downgradeType } for detected downgrades'
 
 runs:
   using: node24
