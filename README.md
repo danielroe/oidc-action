@@ -21,6 +21,8 @@ on:
   pull_request:
     branches:
       - main
+permissions:
+  contents: read
 jobs:
   check-provenance:
     runs-on: ubuntu-latest
