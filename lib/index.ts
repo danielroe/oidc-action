@@ -16,7 +16,7 @@ async function run(): Promise<void> {
     const workspacePath = getInput('workspace-path') || process.env.GITHUB_WORKSPACE || process.cwd()
     const lockfileInput = getInput('lockfile')
     const baseRefInput = getInput('base-ref')
-    const failOnDowngrade = (getInput('fail-on-downgrade') || 'false').toLowerCase() === 'true'
+    const failOnDowngrade = (getInput('fail-on-downgrade') || 'true').toLowerCase() === 'true'
 
     const lockfilePath = lockfileInput || detectLockfile(workspacePath)
     if (!lockfilePath) {
