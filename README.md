@@ -12,6 +12,8 @@ Detect dependencies that lost npm provenance (trusted publishing) from your lock
 - JSON output and optional hard‑fail (default: on)
 - Pure TypeScript, Node 24+
 
+👉 See it in action: [danielroe/provenance-action-test](https://github.com/danielroe/provenance-action-test)
+
 ## 🚀 Quick start
 ```yaml
 name: ci
