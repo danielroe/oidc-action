@@ -434,3 +434,71 @@ describe('parseBunLock', () => {
     expect(result.size).toBe(0)
   })
 })
+
+describe('findLockfileLine', () => {
+  it('findLockfileLine finds npm lockfile by node_modules key', () => {
+    const content = '{"packages": {"node_modules/test": {"version": "1.0.0"}}}'
+    const line = findLockfileLine('package-lock.json', content, 'test', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+
+  it('findLockfileLine finds npm lockfile by name field', () => {
+    const content = '{"packages": {"": {}, "x": {"name": "test", "version": "1.0.0"}}}'
+    const line = findLockfileLine('package-lock.json', content, 'test', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+
+  it('findLockfileLine finds pnpm lockfile primary pattern', () => {
+    const content = 'packages:\n\n  /test@1.0.0:\n    resolution: {integrity: sha512-test}'
+    const line = findLockfileLine('pnpm-lock.yaml', content, 'test', '1.0.0')
+    expect(line).toBe(3)
+  })
+
+  it('findLockfileLine finds pnpm lockfile secondary pattern (trimStart startsWith)', () => {
+    const content = 'packages:\n\n    /test@1.0.0(peer@2.0.0):\n      resolution: {integrity: sha512-test}'
+    const line = findLockfileLine('pnpm-lock.yaml', content, 'test', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+
+  it('findLockfileLine finds yarn v1 lockfile matching version', () => {
+    const content = '# yarn lockfile v1\n\n"test@^1.0.0":\n  version "1.0.0"\n\nother@^1.0.0:\n  version "1.0.0"'
+    const line = findLockfileLine('yarn.lock', content, 'test', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+
+  it('findLockfileLine in yarn v1 breaks when next header encountered', () => {
+    const content = '# yarn lockfile v1\n\n"test@^1.0.0":\n  resolved "x"\nother@^1.0.0:\n  version "1.0.0"'
+    const line = findLockfileLine('yarn.lock', content, 'test', '2.0.0')
+    expect(line).toBe(undefined)
+  })
+
+  it('findLockfileLine finds yarn berry lockfile matching version', () => {
+    const content = '"test@npm:^1.0.0":\n  version: "1.0.0"\n"other@npm:^1.0.0":\n  version: "1.0.0"'
+    const line = findLockfileLine('yarn.lock', content, 'test', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+
+  it('findLockfileLine finds bun lockfile by name then version and breaks at closing brace when not found', () => {
+    const content = '{\n  "packages": [\n    {\n      "name": "test",\n      "desc": "noop"\n    }\n  ]\n}'
+    const line = findLockfileLine('bun.lock', content, 'test', '9.9.9')
+    expect(line).toBeUndefined()
+  })
+
+  it('findLockfileLine finds bun lockfile by array name and version', () => {
+    const content = '{\n  "packages": [\n    {\n      "name": "test",\n      "version": "1.0.0"\n    }\n  ]\n}'
+    const line = findLockfileLine('bun.lock', content, 'test', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+
+  it('findLockfileLine finds bun lockfile by key pattern', () => {
+    const content = '{"packages": {"test@1.0.0": {"something": 1}}}'
+    const line = findLockfileLine('bun.lock', content, 'test', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+
+  it('findLockfileLine finds bun lockfile by version regex fallback', () => {
+    const content = '{"x": 1}\n{"y": 2}\n  "version": "1.0.0"\n{"z": 3}'
+    const line = findLockfileLine('bun.lock', content, 'noname', '1.0.0')
+    expect(typeof line).toBe('number')
+  })
+})
