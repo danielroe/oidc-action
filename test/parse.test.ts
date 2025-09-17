@@ -1,7 +1,6 @@
 import type { VersionsSet } from '../lib/lockfile.ts'
-import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
-import { test } from 'node:test'
+import { describe, expect, it } from 'vitest'
 import { diffDependencySets, findLockfileLine, parseBunLock, parseLockfile, parseNpmLock, parsePnpmLock, parseYarnBerryLock, parseYarnV1Lock, yarnBerrySpecifierToName, yarnV1SpecifierToName } from '../lib/lockfile.ts'
 
 function toSorted(obj: VersionsSet): Record<string, string[]> {
@@ -16,116 +15,126 @@ const yarnV1Lock = readFileSync(new URL('./fixtures/yarn-v1/yarn.lock', import.m
 const yarnBerryLock = readFileSync(new URL('./fixtures/yarn-berry/yarn.lock', import.meta.url), 'utf8')
 const bunLock = readFileSync(new URL('./fixtures/bun/bun.lock', import.meta.url), 'utf8')
 
-test('parseLockfile', async (t) => {
-  await t.test('dispatches npm', () => {
+describe('parseLockfile', () => {
+  it('dispatches npm', () => {
     const npm = parseLockfile('package-lock.json', '{"packages":{}}')
-    assert.ok(npm instanceof Map)
+    expect(npm instanceof Map).toBeTruthy()
   })
-  assert.deepEqual(toSorted(parseNpmLock(packageLockJson)), {
-    '@scope/name': ['2.3.4'],
-    'lodash': ['4.17.21'],
+  it('parses npm', () => {
+    expect(toSorted(parseNpmLock(packageLockJson))).toEqual({
+      '@scope/name': ['2.3.4'],
+      'lodash': ['4.17.21'],
+    })
   })
 
-  await t.test('dispatches pnpm', () => {
+  it('dispatches pnpm', () => {
     const pnpm = parseLockfile('pnpm-lock.yaml', `packages:\n`)
-    assert.ok(pnpm instanceof Map)
+    expect(pnpm instanceof Map).toBeTruthy()
   })
-  assert.deepEqual(toSorted(parsePnpmLock(pnpmLock)), {
-    '@scope/name': ['2.3.4'],
-    'lodash': ['4.17.21'],
+  it('parses pnpm', () => {
+    expect(toSorted(parsePnpmLock(pnpmLock))).toEqual({
+      '@scope/name': ['2.3.4'],
+      'lodash': ['4.17.21'],
+    })
   })
 
-  await t.test('dispatches yarn v1', () => {
+  it('dispatches yarn v1', () => {
     const yarnV1 = parseLockfile('yarn.lock', `pkg@^1:\n  version "1.0.0"`)
-    assert.ok(yarnV1 instanceof Map)
+    expect(yarnV1 instanceof Map).toBeTruthy()
   })
-  assert.deepEqual(toSorted(parseYarnV1Lock(yarnV1Lock)), {
-    '@scope/name': ['2.3.4'],
-    'lodash': ['4.17.21'],
+  it('parses yarn v1', () => {
+    expect(toSorted(parseYarnV1Lock(yarnV1Lock))).toEqual({
+      '@scope/name': ['2.3.4'],
+      'lodash': ['4.17.21'],
+    })
   })
 
-  await t.test('dispatches yarn berry', () => {
+  it('dispatches yarn berry', () => {
     const yarnBerry = parseLockfile('yarn.lock', `"pkg@npm:^1":\n  version: 1.0.0`)
-    assert.ok(yarnBerry instanceof Map)
+    expect(yarnBerry instanceof Map).toBeTruthy()
   })
-  assert.deepEqual(toSorted(parseYarnBerryLock(yarnBerryLock)), {
-    '@scope/name': ['2.3.4'],
-    'lodash': ['4.17.21'],
+  it('parses yarn berry', () => {
+    expect(toSorted(parseYarnBerryLock(yarnBerryLock))).toEqual({
+      '@scope/name': ['2.3.4'],
+      'lodash': ['4.17.21'],
+    })
   })
 
-  await t.test('dispatches bun', () => {
+  it('dispatches bun', () => {
     const bun = parseLockfile('bun.lock', `{"packages":[]}`)
-    assert.ok(bun instanceof Map)
+    expect(bun instanceof Map).toBeTruthy()
   })
-  assert.deepEqual(toSorted(parseBunLock(bunLock)), {
-    '@scope/name': ['2.3.4'],
-    'lodash': ['4.17.21'],
+  it('parses bun', () => {
+    expect(toSorted(parseBunLock(bunLock))).toEqual({
+      '@scope/name': ['2.3.4'],
+      'lodash': ['4.17.21'],
+    })
   })
 })
 
-test('yarnV1SpecifierToName', () => {
-  assert.equal(yarnV1SpecifierToName('lodash@^4.17.21'), 'lodash')
-  assert.equal(yarnV1SpecifierToName('@scope/name@^1.0.0'), '@scope/name')
-  assert.equal(yarnV1SpecifierToName('name@npm:^1.0.0'), 'name')
+it('yarnV1SpecifierToName', () => {
+  expect(yarnV1SpecifierToName('lodash@^4.17.21')).toBe('lodash')
+  expect(yarnV1SpecifierToName('@scope/name@^1.0.0')).toBe('@scope/name')
+  expect(yarnV1SpecifierToName('name@npm:^1.0.0')).toBe('name')
 })
 
-test('yarnBerrySpecifierToName', () => {
-  assert.equal(yarnBerrySpecifierToName('lodash@npm:^4.17.21'), 'lodash')
-  assert.equal(yarnBerrySpecifierToName('@scope/name@npm:^1.0.0'), '@scope/name')
-  assert.equal(yarnBerrySpecifierToName('name@npm:^1.0.0'), 'name')
+it('yarnBerrySpecifierToName', () => {
+  expect(yarnBerrySpecifierToName('lodash@npm:^4.17.21')).toBe('lodash')
+  expect(yarnBerrySpecifierToName('@scope/name@npm:^1.0.0')).toBe('@scope/name')
+  expect(yarnBerrySpecifierToName('name@npm:^1.0.0')).toBe('name')
 })
 
-test('diffDependencySets', () => {
+it('diffDependencySets', () => {
   const a: VersionsSet = new Map([['lodash', new Set(['4.17.21'])]])
   const b: VersionsSet = new Map([['lodash', new Set(['4.17.21', '4.17.22'])]])
   const diff = diffDependencySets(a, b)
-  assert.equal(diff.length, 1)
-  assert.equal(diff[0].name, 'lodash')
+  expect(diff.length).toBe(1)
+  expect(diff[0].name).toBe('lodash')
 })
 
-test('findLockfileLine', async (t) => {
-  await t.test('finds in npm lockfile', () => {
-    assert.ok(
+describe('findLockfileLine', () => {
+  it('finds in npm lockfile', () => {
+    expect(
       findLockfileLine('package-lock.json', packageLockJson, 'lodash', '4.17.21'),
-    )
+    ).toBeTruthy()
   })
-  await t.test('finds in pnpm lockfile', () => {
-    assert.ok(
+  it('finds in pnpm lockfile', () => {
+    expect(
       findLockfileLine('pnpm-lock.yaml', pnpmLock, 'lodash', '4.17.21'),
-    )
+    ).toBeTruthy()
   })
-  await t.test('finds in yarn v1 lockfile', () => {
-    assert.ok(
+  it('finds in yarn v1 lockfile', () => {
+    expect(
       findLockfileLine('yarn.lock', yarnV1Lock, 'lodash', '4.17.21'),
-    )
+    ).toBeTruthy()
   })
-  await t.test('finds in yarn berry lockfile', () => {
-    assert.ok(
+  it('finds in yarn berry lockfile', () => {
+    expect(
       findLockfileLine('yarn.lock', yarnBerryLock, 'lodash', '4.17.21'),
-    )
+    ).toBeTruthy()
   })
-  await t.test('finds in bun lockfile', () => {
-    assert.ok(
+  it('finds in bun lockfile', () => {
+    expect(
       findLockfileLine('bun.lock', bunLock, 'lodash', '4.17.21'),
-    )
+    ).toBeTruthy()
   })
 
-  await t.test('pnpm tolerates peer suffix and quotes', () => {
+  it('pnpm tolerates peer suffix and quotes', () => {
     const pnpm = `packages:\n\n  "/name@1.0.0(peer@x)":\n    resolution: {integrity: sha512-...}\n`
     const line = findLockfileLine('pnpm-lock.yaml', pnpm, 'name', '1.0.0')
-    assert.ok(line && line >= 1)
+    expect(line).toBeGreaterThanOrEqual(1)
   })
 
-  await t.test('yarn v1 matches within multi-spec header', () => {
+  it('yarn v1 matches within multi-spec header', () => {
     const y1 = `# yarn lockfile v1\nname@^1.0.0, name@~1.0.0:\n  version "1.0.1"\n`
     const line = findLockfileLine('yarn.lock', y1, 'name', '1.0.1')
-    assert.equal(line, 3)
+    expect(line).toBe(3)
   })
 
-  await t.test('yarn berry parses version in multiple formats', () => {
+  it('yarn berry parses version in multiple formats', () => {
     const yb = `"name@npm:^1":\n  version: 1.2.3\n\n"name@npm:^2":\n  version: '2.3.4'\n\n"name@npm:^3":\n  version: 3.2.1 # comment\n`
-    assert.equal(findLockfileLine('yarn.lock', yb, 'name', '1.2.3'), 2)
-    assert.equal(findLockfileLine('yarn.lock', yb, 'name', '2.3.4'), 5)
-    assert.equal(findLockfileLine('yarn.lock', yb, 'name', '3.2.1'), 8)
+    expect(findLockfileLine('yarn.lock', yb, 'name', '1.2.3')).toBe(2)
+    expect(findLockfileLine('yarn.lock', yb, 'name', '2.3.4')).toBe(5)
+    expect(findLockfileLine('yarn.lock', yb, 'name', '3.2.1')).toBe(8)
   })
 })
