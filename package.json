@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.1",
   "packageManager": "pnpm@10.15.0",
-  "description": "GitHub Action that detects dependency provenance downgrades from lockfile changes (npm/pnpm/yarn).",
+  "description": "GitHub Action that fails CI when dependencies in your lockfile lose npm provenance or trusted publisher status",
   "author": "Daniel Roe <daniel@roe.dev>",
   "license": "MIT",
   "keywords": [],

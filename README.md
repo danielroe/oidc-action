@@ -1,6 +1,6 @@
 # `danielroe/provenance-action`
 
-Detect and fail CI when dependencies in your lockfile lose npm provenance or trusted publisher status.
+Fail CI when dependencies in your lockfile lose npm provenance or trusted publisher status.
 
 > [!WARNING]
 > This action is under active development and is only one tool to assist in securing your dependencies.
