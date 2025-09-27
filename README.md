@@ -21,6 +21,14 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      # Trigger a run only on PRs that change the lockfile
+      # (keep whichever is relevant and/or configure its path):
+      - pnpm-lock.yaml
+      - package-lock.json
+      - yarn.lock
+      - bun.lock
+
 permissions:
   contents: read
 jobs:
